@@ -16,15 +16,14 @@ function createBrowser() {
   const cookieHeader = () => [...cookies].map(([name, value]) => `${name}=${value}`).join('; ');
 
   async function request(method, path, body) {
-    const headers = { Origin: ORIGIN, Cookie: cookieHeader() };
-    if (body) headers['Content-Type'] = 'application/json';
-    if (csrfToken && method !== 'GET') headers['X-CSRF-Token'] = csrfToken;
+    const options = { method, headers: { Origin: ORIGIN, Cookie: cookieHeader() } };
+    if (csrfToken && method !== 'GET') options.headers['X-CSRF-Token'] = csrfToken;
+    if (body) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
 
-    const res = await fetch(`${BASE_URL}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const res = await fetch(`${BASE_URL}${path}`, options);
     for (const cookie of res.headers.getSetCookie()) {
       const [pair] = cookie.split(';');
       const [name, ...rest] = pair.split('=');

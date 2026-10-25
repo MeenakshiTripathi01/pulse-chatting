@@ -3,6 +3,20 @@ import * as authApi from '../api/auth.js';
 import { getErrorMessage, setUnauthorizedHandler } from '../api/client.js';
 import { AuthContext } from './authContext.js';
 
+// The session lives in an HttpOnly cookie that JavaScript cannot read, so on every page load
+// we ask the server who we are. This is what keeps users logged in after a refresh.
+async function loadSessionState() {
+  try {
+    const user = await authApi.getCurrentUser();
+    return { status: 'authenticated', user, error: null, notice: null };
+  } catch (error) {
+    if (error.response?.status === 401) {
+      return { status: 'unauthenticated', user: null, error: null, notice: null };
+    }
+    return { status: 'error', user: null, error: getErrorMessage(error), notice: null };
+  }
+}
+
 /**
  * status:
  *  - "loading":         checking for an existing session (page load / refresh)
@@ -13,41 +27,39 @@ import { AuthContext } from './authContext.js';
 export function AuthProvider({ children }) {
   const [state, setState] = useState({ status: 'loading', user: null, error: null, notice: null });
 
-  // The session lives in an HttpOnly cookie that JavaScript cannot read, so on every page load
-  // we ask the server who we are. This is what keeps users logged in after a refresh.
-  const restoreSession = useCallback(async () => {
-    setState((previous) => ({ ...previous, status: 'loading', error: null }));
-    try {
-      const user = await authApi.getCurrentUser();
-      setState({ status: 'authenticated', user, error: null, notice: null });
-    } catch (error) {
-      if (error.response?.status === 401) {
-        setState({ status: 'unauthenticated', user: null, error: null, notice: null });
-      } else {
-        setState({ status: 'error', user: null, error: getErrorMessage(error), notice: null });
-      }
-    }
-  }, []);
-
   useEffect(() => {
-    restoreSession();
-  }, [restoreSession]);
-
-  useEffect(() => {
-    setUnauthorizedHandler(() => {
-      setState((previous) =>
-        previous.status === 'authenticated'
-          ? {
-              status: 'unauthenticated',
-              user: null,
-              error: null,
-              notice: 'Your session has ended. Please log in again.',
-            }
-          : previous,
-      );
+    let cancelled = false;
+    loadSessionState().then((next) => {
+      if (!cancelled) setState(next);
     });
-    return () => setUnauthorizedHandler(null);
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const retrySession = useCallback(async () => {
+    setState((previous) => ({ ...previous, status: 'loading', error: null }));
+    setState(await loadSessionState());
+  }, []);
+
+  /** Called when the server rejects our session (REST 401 or socket auth failure). */
+  const expireSession = useCallback(() => {
+    setState((previous) =>
+      previous.status === 'authenticated'
+        ? {
+            status: 'unauthenticated',
+            user: null,
+            error: null,
+            notice: 'Your session has ended. Please log in again.',
+          }
+        : previous,
+    );
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(expireSession);
+    return () => setUnauthorizedHandler(null);
+  }, [expireSession]);
 
   const login = useCallback(async (credentials) => {
     const user = await authApi.login(credentials);
@@ -71,8 +83,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ...state, login, register, logout, retry: restoreSession }),
-    [state, login, register, logout, restoreSession],
+    () => ({ ...state, login, register, logout, expireSession, retry: retrySession }),
+    [state, login, register, logout, expireSession, retrySession],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

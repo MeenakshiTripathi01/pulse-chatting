@@ -10,6 +10,14 @@ vi.mock('../api/auth.js', () => ({
   register: vi.fn(),
   logout: vi.fn(),
 }));
+// The chat screen behind the login needs these; these tests only care about auth.
+vi.mock('../api/conversations.js', () => ({
+  listConversations: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../lib/socket.js', async () => {
+  const { FakeSocket } = await import('./fakeSocket.js');
+  return { createSocket: () => new FakeSocket() };
+});
 
 const ada = { id: 'u1', name: 'Ada Lovelace', email: 'ada@example.com' };
 

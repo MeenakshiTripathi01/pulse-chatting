@@ -60,10 +60,7 @@ beforeEach(() => {
   authApi.getCurrentUser.mockResolvedValue(ada);
   conversationsApi.listConversations.mockResolvedValue([conversationWithBob]);
   conversationsApi.listMessages.mockResolvedValue({
-    messages: [
-      message('m1', ada.id, 'Hello Bob', 10),
-      message('m2', bob.id, 'See you soon', 5),
-    ],
+    messages: [message('m1', ada.id, 'Hello Bob', 10), message('m2', bob.id, 'See you soon', 5)],
     hasMore: false,
     nextCursor: null,
   });
@@ -103,12 +100,16 @@ describe('conversation list', () => {
     renderApp('/');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Find people' }));
-    expect(await screen.findByRole('button', { name: 'Message Carol Danvers' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Message Carol Danvers' }),
+    ).toBeInTheDocument();
   });
 
   it('shows an error with a working retry', async () => {
     conversationsApi.listConversations
-      .mockRejectedValueOnce(apiError(500, { message: 'Something went wrong. Please try again later.' }))
+      .mockRejectedValueOnce(
+        apiError(500, { message: 'Something went wrong. Please try again later.' }),
+      )
       .mockResolvedValueOnce([conversationWithBob]);
     renderApp('/');
 
@@ -197,7 +198,9 @@ describe('sending messages', () => {
       message: message('m3', ada.id, 'Are you free today?', 0, { clientMessageId }),
     });
 
-    await waitFor(() => expect(within(messageLog()).queryByText('Sending…')).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(within(messageLog()).queryByText('Sending…')).not.toBeInTheDocument(),
+    );
     expect(within(messageLog()).getAllByText('Are you free today?')).toHaveLength(1);
     expect(within(sidebarList()).getByText('You: Are you free today?')).toBeInTheDocument();
   });
@@ -220,7 +223,10 @@ describe('sending messages', () => {
     socket.emitWithAck
       .mockResolvedValueOnce({
         ok: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Your message could not be sent. Please try again.' },
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Your message could not be sent. Please try again.',
+        },
       })
       .mockImplementationOnce(async (_event, payload) => ({
         ok: true,
@@ -228,12 +234,17 @@ describe('sending messages', () => {
       }));
     await openConversationWithBob();
 
-    await userEvent.type(screen.getByRole('textbox', { name: 'Message Bob Builder' }), 'Retry me{Enter}');
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Message Bob Builder' }),
+      'Retry me{Enter}',
+    );
     expect(await within(messageLog()).findByText(/Not sent\./)).toBeInTheDocument();
 
     await userEvent.click(within(messageLog()).getByRole('button', { name: 'Retry' }));
 
-    await waitFor(() => expect(within(messageLog()).queryByText(/Not sent\./)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(within(messageLog()).queryByText(/Not sent\./)).not.toBeInTheDocument(),
+    );
     const [first, second] = socket.emitWithAck.mock.calls.map(([, payload]) => payload);
     expect(second.clientMessageId).toBe(first.clientMessageId);
     expect(within(messageLog()).getAllByText('Retry me')).toHaveLength(1);
@@ -243,7 +254,10 @@ describe('sending messages', () => {
     socket.emitWithAck.mockRejectedValue(new Error('operation has timed out'));
     await openConversationWithBob();
 
-    await userEvent.type(screen.getByRole('textbox', { name: 'Message Bob Builder' }), 'Hello?{Enter}');
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Message Bob Builder' }),
+      'Hello?{Enter}',
+    );
 
     expect(await within(messageLog()).findByText(/did not respond in time/)).toBeInTheDocument();
   });
@@ -289,7 +303,11 @@ describe('real-time updates', () => {
       lastMessageAt: iso(0),
       createdAt: iso(0),
     });
-    conversationsApi.listMessages.mockResolvedValue({ messages: [], hasMore: false, nextCursor: null });
+    conversationsApi.listMessages.mockResolvedValue({
+      messages: [],
+      hasMore: false,
+      nextCursor: null,
+    });
     renderApp('/');
 
     await userEvent.click(await screen.findByRole('tab', { name: 'People' }));

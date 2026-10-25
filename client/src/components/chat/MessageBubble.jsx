@@ -7,7 +7,9 @@ export function MessageBubble({ message, isOwn, onRetry }) {
 
   return (
     <li className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-      <div className={`flex max-w-[85%] flex-col sm:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
+      <div
+        className={`flex max-w-[85%] flex-col sm:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}
+      >
         <div
           className={`rounded-2xl px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap ${
             isOwn

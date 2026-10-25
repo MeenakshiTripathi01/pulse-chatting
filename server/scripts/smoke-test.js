@@ -62,7 +62,10 @@ async function main() {
   const runId = randomUUID().slice(0, 8);
 
   const health = await (await fetch(`${BASE_URL}/api/health`)).json();
-  check(health.status === 'ok' && health.database === 'connected', 'health check reports DB connected');
+  check(
+    health.status === 'ok' && health.database === 'connected',
+    'health check reports DB connected',
+  );
 
   const alice = createBrowser();
   const bob = createBrowser();
@@ -83,9 +86,15 @@ async function main() {
   check(bobReg.status === 201, 'Bob registers');
 
   const me = await alice.request('GET', '/api/auth/me');
-  check(me.status === 200 && me.data.user.name === 'Smoke Alice', 'session cookie authenticates /me');
+  check(
+    me.status === 200 && me.data.user.name === 'Smoke Alice',
+    'session cookie authenticates /me',
+  );
 
-  const search = await alice.request('GET', `/api/users?search=${encodeURIComponent(`smoke-bob-${runId}`)}`);
+  const search = await alice.request(
+    'GET',
+    `/api/users?search=${encodeURIComponent(`smoke-bob-${runId}`)}`,
+  );
   check(search.data.users.length === 1, 'Alice finds Bob in the user directory');
 
   const convo = await alice.request('POST', '/api/conversations', {
@@ -121,13 +130,19 @@ async function main() {
       conversationId,
       content: 'Reply from Bob',
     });
-    check(reply.ok && (await aliceReceives).message.content === 'Reply from Bob', 'Bob replies and Alice receives it');
+    check(
+      reply.ok && (await aliceReceives).message.content === 'Reply from Bob',
+      'Bob replies and Alice receives it',
+    );
 
     const empty = await aliceSocket.timeout(5000).emitWithAck('message:send', {
       conversationId,
       content: '   ',
     });
-    check(empty.ok === false && empty.error.code === 'VALIDATION_ERROR', 'empty messages are rejected');
+    check(
+      empty.ok === false && empty.error.code === 'VALIDATION_ERROR',
+      'empty messages are rejected',
+    );
 
     const history = await bob.request('GET', `/api/conversations/${conversationId}/messages`);
     check(
@@ -137,11 +152,17 @@ async function main() {
     );
 
     const list = await alice.request('GET', '/api/conversations');
-    check(list.data.conversations[0].lastMessage?.content === 'Reply from Bob', 'conversation preview shows the latest message');
+    check(
+      list.data.conversations[0].lastMessage?.content === 'Reply from Bob',
+      'conversation preview shows the latest message',
+    );
 
     const logout = await alice.request('POST', '/api/auth/logout');
     check(logout.status === 204, 'Alice logs out');
-    check((await alice.request('GET', '/api/auth/me')).status === 401, 'logged-out session is rejected');
+    check(
+      (await alice.request('GET', '/api/auth/me')).status === 401,
+      'logged-out session is rejected',
+    );
   } finally {
     aliceSocket.disconnect();
     bobSocket.disconnect();

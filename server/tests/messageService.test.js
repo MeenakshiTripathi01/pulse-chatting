@@ -32,7 +32,11 @@ describe('sendMessage', () => {
     });
 
     expect(duplicate).toBe(false);
-    expect(message).toMatchObject({ conversationId, senderId: alice.user.id, content: 'Hello Bob' });
+    expect(message).toMatchObject({
+      conversationId,
+      senderId: alice.user.id,
+      content: 'Hello Bob',
+    });
 
     const stored = await Message.findById(message.id).lean();
     expect(stored.content).toBe('Hello Bob');

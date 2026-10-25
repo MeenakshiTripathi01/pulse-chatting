@@ -23,7 +23,10 @@ export default function RegisterPage() {
       footer={
         <>
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-brand-700 underline-offset-2 hover:underline">
+          <Link
+            to="/login"
+            className="font-medium text-brand-700 underline-offset-2 hover:underline"
+          >
             Log in
           </Link>
         </>

@@ -22,10 +22,7 @@ export function TextField({ label, error, hint, className = '', ...inputProps })
         {...inputProps}
       />
       {message && (
-        <p
-          id={messageId}
-          className={`mt-1.5 text-sm ${error ? 'text-red-700' : 'text-slate-500'}`}
-        >
+        <p id={messageId} className={`mt-1.5 text-sm ${error ? 'text-red-700' : 'text-slate-500'}`}>
           {message}
         </p>
       )}

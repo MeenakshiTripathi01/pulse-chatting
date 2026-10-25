@@ -15,9 +15,7 @@ export function ConnectionBanner({ connection }) {
     <div
       role="status"
       className={`flex items-center justify-center gap-2 px-4 py-1.5 text-sm ${
-        connection === 'connecting'
-          ? 'bg-slate-200 text-slate-700'
-          : 'bg-amber-100 text-amber-900'
+        connection === 'connecting' ? 'bg-slate-200 text-slate-700' : 'bg-amber-100 text-amber-900'
       }`}
     >
       {connection !== 'offline' && <Spinner className="size-3.5" />}

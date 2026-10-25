@@ -5,7 +5,8 @@ const VARIANTS = {
     'bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-600/60 focus-visible:outline-brand-600',
   secondary:
     'bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50 disabled:text-slate-400 focus-visible:outline-brand-600',
-  ghost: 'text-slate-700 hover:bg-slate-100 disabled:text-slate-400 focus-visible:outline-brand-600',
+  ghost:
+    'text-slate-700 hover:bg-slate-100 disabled:text-slate-400 focus-visible:outline-brand-600',
 };
 
 export function Button({

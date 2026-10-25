@@ -84,7 +84,10 @@ export function PeopleList({ search, onStartConversation }) {
                 <span className="block truncate text-sm text-slate-600">{user.email}</span>
               </span>
               {startingUserId === user.id ? (
-                <Spinner className="size-4 text-brand-600" label={`Opening chat with ${user.name}`} />
+                <Spinner
+                  className="size-4 text-brand-600"
+                  label={`Opening chat with ${user.name}`}
+                />
               ) : (
                 <span className="text-sm font-medium text-brand-700">Message</span>
               )}

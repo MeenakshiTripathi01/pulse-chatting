@@ -14,7 +14,10 @@ export async function requireAuth(req, res, next) {
   const session = await getSessionFromToken(token);
   if (!session) {
     clearAuthCookie(res);
-    throw AppError.unauthorized('Your session has expired. Please log in again.', 'SESSION_EXPIRED');
+    throw AppError.unauthorized(
+      'Your session has expired. Please log in again.',
+      'SESSION_EXPIRED',
+    );
   }
 
   req.user = session.user;

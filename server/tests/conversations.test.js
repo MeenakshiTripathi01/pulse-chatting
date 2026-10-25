@@ -36,10 +36,7 @@ describe('POST /api/conversations', () => {
       type: 'direct',
       lastMessage: null,
     });
-    expect(res.body.conversation.participants.map((p) => p.name).sort()).toEqual([
-      'Alice',
-      'Bob',
-    ]);
+    expect(res.body.conversation.participants.map((p) => p.name).sort()).toEqual(['Alice', 'Bob']);
   });
 
   it('returns the existing conversation instead of creating a duplicate (either direction)', async () => {
@@ -109,7 +106,11 @@ describe('GET /api/conversations', () => {
 describe('conversation authorization', () => {
   it('hides a conversation and its messages from non-members', async () => {
     const conversation = await startConversation(alice, bob);
-    await sendMessage({ conversationId: conversation.id, senderId: alice.user.id, content: 'Secret' });
+    await sendMessage({
+      conversationId: conversation.id,
+      senderId: alice.user.id,
+      content: 'Secret',
+    });
 
     const details = await mallory.get(`/api/conversations/${conversation.id}`);
     const messages = await mallory.get(`/api/conversations/${conversation.id}/messages`);

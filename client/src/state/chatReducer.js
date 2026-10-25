@@ -111,7 +111,10 @@ function setMessageStatus(state, conversationId, clientMessageId, changes) {
 export function chatReducer(state, action) {
   switch (action.type) {
     case 'conversations/loading':
-      return { ...state, conversations: { ...state.conversations, status: 'loading', error: null } };
+      return {
+        ...state,
+        conversations: { ...state.conversations, status: 'loading', error: null },
+      };
 
     case 'conversations/loaded':
       return {

@@ -41,9 +41,7 @@ afterEach(() => vi.restoreAllMocks());
 describe('api client', () => {
   it('sends credentials and no CSRF header on GET requests', async () => {
     await api.get('/users');
-    expect(requests).toEqual([
-      { method: 'get', url: '/users', csrf: null, withCredentials: true },
-    ]);
+    expect(requests).toEqual([{ method: 'get', url: '/users', csrf: null, withCredentials: true }]);
   });
 
   it('fetches the CSRF token once and attaches it to state-changing requests', async () => {

@@ -66,7 +66,10 @@ async function connectAs(client) {
 
 function waitForEvent(socket, event, timeoutMs = 3000) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Timed out waiting for "${event}"`)), timeoutMs);
+    const timer = setTimeout(
+      () => reject(new Error(`Timed out waiting for "${event}"`)),
+      timeoutMs,
+    );
     socket.once(event, (data) => {
       clearTimeout(timer);
       resolve(data);

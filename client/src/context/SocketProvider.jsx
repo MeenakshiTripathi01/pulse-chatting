@@ -63,7 +63,10 @@ export function SocketProvider({ children }) {
     };
   }, [socket, expireSession]);
 
-  const value = useMemo(() => ({ socket, connection, readyCount }), [socket, connection, readyCount]);
+  const value = useMemo(
+    () => ({ socket, connection, readyCount }),
+    [socket, connection, readyCount],
+  );
 
   return <SocketContext value={value}>{children}</SocketContext>;
 }

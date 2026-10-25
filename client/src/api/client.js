@@ -71,7 +71,8 @@ api.interceptors.response.use(
 /** Turns any API/network error into a sentence that is safe to show to users. */
 export function getErrorMessage(error, fallback = 'Something went wrong. Please try again.') {
   if (error?.response?.data?.error?.message) return error.response.data.error.message;
-  if (error?.code === 'ECONNABORTED') return 'The server took too long to respond. Please try again.';
+  if (error?.code === 'ECONNABORTED')
+    return 'The server took too long to respond. Please try again.';
   if (error?.request && !error.response) {
     return "Can't reach the server. Check your connection and try again.";
   }

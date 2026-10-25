@@ -135,7 +135,9 @@ describe('registration', () => {
       confirmPassword: 'Password123',
     });
 
-    expect(await screen.findByText('An account with this email already exists')).toBeInTheDocument();
+    expect(
+      await screen.findByText('An account with this email already exists'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true');
   });
 

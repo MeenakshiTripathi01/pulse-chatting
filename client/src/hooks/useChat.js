@@ -59,7 +59,8 @@ export function useChat(activeConversationId) {
     if (!activeConversationId) return;
     const thread = stateRef.current.threads[activeConversationId];
     if (!thread || thread.status === 'idle') loadThread(activeConversationId, 'initial');
-    else if (thread.stale && thread.status === 'success') loadThread(activeConversationId, 'resync');
+    else if (thread.stale && thread.status === 'success')
+      loadThread(activeConversationId, 'resync');
   }, [activeConversationId, loadThread]);
 
   // A conversation opened by URL that isn't in the list yet (e.g. just created by the other
@@ -206,7 +207,7 @@ export function useChat(activeConversationId) {
     conversations: state.conversations,
     activeConversation:
       state.conversations.items.find((c) => c.id === activeConversationId) ?? null,
-    activeThread: activeConversationId ? state.threads[activeConversationId] ?? null : null,
+    activeThread: activeConversationId ? (state.threads[activeConversationId] ?? null) : null,
     reloadConversations: loadConversations,
     reloadThread: loadThread,
     sendMessage,

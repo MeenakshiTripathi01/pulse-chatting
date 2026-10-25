@@ -1,5 +1,9 @@
 import { Link } from 'react-router';
-import { formatConversationTime, formatFullDateTime, getOtherParticipant } from '../../lib/format.js';
+import {
+  formatConversationTime,
+  formatFullDateTime,
+  getOtherParticipant,
+} from '../../lib/format.js';
 import { Alert } from '../ui/Alert.jsx';
 import { Avatar } from '../ui/Avatar.jsx';
 import { Button } from '../ui/Button.jsx';

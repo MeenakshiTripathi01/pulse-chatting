@@ -71,7 +71,10 @@ export function MessageComposer({ onSend, disabled, disabledReason, recipientNam
           </svg>
         </button>
       </div>
-      <div id="composer-help" className="mt-1.5 flex justify-between gap-2 px-1 text-xs text-slate-500">
+      <div
+        id="composer-help"
+        className="mt-1.5 flex justify-between gap-2 px-1 text-xs text-slate-500"
+      >
         <span>
           {disabled ? (
             <span className="text-amber-800">{disabledReason}</span>

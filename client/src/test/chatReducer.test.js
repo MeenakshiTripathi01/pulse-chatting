@@ -89,7 +89,9 @@ describe('chatReducer', () => {
       error: 'timeout',
     });
 
-    expect(state.threads.c1.messages).toEqual([expect.objectContaining({ id: 'real', status: 'sent' })]);
+    expect(state.threads.c1.messages).toEqual([
+      expect.objectContaining({ id: 'real', status: 'sent' }),
+    ]);
   });
 
   it('moves the conversation with the newest message to the top and updates its preview', () => {

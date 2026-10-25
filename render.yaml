@@ -1,0 +1,33 @@
+# Render Blueprint: one web service that serves the API, Socket.IO and the built React app.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: pulse-chat
+    runtime: node
+    plan: free
+    # devDependencies (Vite, Tailwind) are needed to build the client, so include them even
+    # though NODE_ENV=production.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: NODE_ENV
+        value: production
+      - key: SERVE_CLIENT
+        value: 'true'
+      - key: TRUST_PROXY
+        value: '1'
+      - key: COOKIE_SAME_SITE
+        value: lax
+      # Skip downloading the test-only in-memory MongoDB binary during deploys.
+      - key: MONGOMS_DISABLE_POSTINSTALL
+        value: '1'
+      - key: JWT_SECRET
+        generateValue: true
+      # Set these in the Render dashboard (never commit them):
+      - key: MONGODB_URI
+        sync: false
+      - key: CLIENT_ORIGIN # e.g. https://pulse-chat.onrender.com
+        sync: false

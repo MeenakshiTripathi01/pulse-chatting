@@ -3,11 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { User } from '../src/models/User.js';
 import { buildUserData, createClient, registerClient } from './helpers/clients.js';
-import {
-  clearTestDatabase,
-  connectTestDatabase,
-  disconnectTestDatabase,
-} from './helpers/db.js';
+import { clearTestDatabase, connectTestDatabase, disconnectTestDatabase } from './helpers/db.js';
 
 const app = createApp();
 

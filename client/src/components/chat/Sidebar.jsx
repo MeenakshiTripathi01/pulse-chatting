@@ -66,7 +66,11 @@ export function Sidebar({
       </div>
 
       <div className="space-y-3 px-4 pb-3">
-        <div role="tablist" aria-label="Sidebar sections" className="grid grid-cols-2 rounded-lg bg-slate-100 p-1">
+        <div
+          role="tablist"
+          aria-label="Sidebar sections"
+          className="grid grid-cols-2 rounded-lg bg-slate-100 p-1"
+        >
           {TABS.map(({ id, label }) => (
             <button
               key={id}
@@ -79,7 +83,9 @@ export function Sidebar({
               onClick={() => setTab(id)}
               onKeyDown={handleTabKeyDown}
               className={`rounded-md py-1.5 text-sm font-medium focus-visible:outline-2 focus-visible:outline-brand-600 ${
-                tab === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                tab === id
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               {label}
@@ -88,7 +94,9 @@ export function Sidebar({
         </div>
 
         <label className="relative block">
-          <span className="sr-only">{tab === 'chats' ? 'Search conversations' : 'Search people'}</span>
+          <span className="sr-only">
+            {tab === 'chats' ? 'Search conversations' : 'Search people'}
+          </span>
           <svg
             aria-hidden="true"
             viewBox="0 0 20 20"
@@ -105,7 +113,9 @@ export function Sidebar({
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={tab === 'chats' ? 'Search conversations' : 'Search people by name or email'}
+            placeholder={
+              tab === 'chats' ? 'Search conversations' : 'Search people by name or email'
+            }
             className="block w-full rounded-lg border border-slate-300 bg-white py-2 pr-3 pl-9 text-sm placeholder:text-slate-500 focus:border-brand-500 focus:outline-2 focus:outline-brand-500"
           />
         </label>

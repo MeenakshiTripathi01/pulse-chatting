@@ -5,7 +5,13 @@ export function Logo({ compact = false }) {
         aria-hidden="true"
         className="grid size-8 place-items-center rounded-lg bg-brand-600 text-white"
       >
-        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          viewBox="0 0 24 24"
+          className="size-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"

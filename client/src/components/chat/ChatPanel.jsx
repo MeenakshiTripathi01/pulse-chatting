@@ -127,7 +127,10 @@ export function ChatPanel({
   }
 
   return (
-    <section aria-label={other ? `Chat with ${other.name}` : 'Chat'} className={`min-h-0 flex-col bg-slate-50 ${className}`}>
+    <section
+      aria-label={other ? `Chat with ${other.name}` : 'Chat'}
+      className={`min-h-0 flex-col bg-slate-50 ${className}`}
+    >
       <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
         <BackLink />
         {other ? (

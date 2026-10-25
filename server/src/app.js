@@ -6,7 +6,9 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import { config } from './config/env.js';
+import { requireCsrfToken } from './middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { authRouter } from './routes/authRoutes.js';
 
 const clientDistPath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -41,6 +43,8 @@ export function createApp() {
     });
   });
 
+  app.use('/api', requireCsrfToken);
+  app.use('/api/auth', authRouter);
   app.use('/api', notFoundHandler);
 
   if (config.serveClient) {

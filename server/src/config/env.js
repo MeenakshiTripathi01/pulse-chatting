@@ -9,8 +9,12 @@ const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(5000),
-    MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
-    JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
+    MONGODB_URI: z
+      .string({ error: 'is required (copy server/.env.example to server/.env)' })
+      .min(1, 'is required'),
+    JWT_SECRET: z
+      .string({ error: 'is required (copy server/.env.example to server/.env)' })
+      .min(32, 'must be at least 32 characters long'),
     JWT_EXPIRES_IN_SECONDS: z.coerce
       .number()
       .int()

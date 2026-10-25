@@ -1,9 +1,5 @@
 import mongoose from 'mongoose';
 
-// Strips MongoDB query operators (e.g. {"$gt": ""}) from user-supplied filter values,
-// a second line of defence against NoSQL injection on top of request validation.
-mongoose.set('sanitizeFilter', true);
-
 export async function connectDatabase(uri) {
   try {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 10_000 });

@@ -26,7 +26,8 @@ export function toConversationDto(conversation) {
   return {
     id: String(conversation._id),
     type: conversation.type,
-    participants: conversation.participants.map(toPublicUser),
+    // filter(Boolean) skips participants whose user document no longer exists.
+    participants: conversation.participants.filter(Boolean).map(toPublicUser),
     lastMessage: lastMessage
       ? {
           id: String(lastMessage.messageId),

@@ -26,8 +26,8 @@ services:
         value: '1'
       - key: JWT_SECRET
         generateValue: true
-      # Set these in the Render dashboard (never commit them):
+      # Secret: entered in the Render dashboard during setup, never committed.
       - key: MONGODB_URI
         sync: false
-      - key: CLIENT_ORIGIN # e.g. https://pulse-chat.onrender.com
-        sync: false
+      # CLIENT_ORIGIN is optional on Render: the server automatically allows the service's
+      # public URL (RENDER_EXTERNAL_URL). Add CLIENT_ORIGIN only for a custom domain.

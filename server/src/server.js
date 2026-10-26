@@ -26,6 +26,7 @@ async function start() {
 
   httpServer.listen(config.port, () => {
     console.log(`[server] Listening on http://localhost:${config.port} (${config.nodeEnv})`);
+    console.log(`[server] Allowed browser origins: ${config.clientOrigins.join(', ')}`);
   });
 
   const shutdown = async (signal) => {

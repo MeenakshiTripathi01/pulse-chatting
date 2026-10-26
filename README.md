@@ -145,7 +145,7 @@ can't make it go backwards.
 - **Handshake auth:** the browser sends the same session cookie; `socket/auth.js` uses the same
   `getSessionFromToken` as the REST middleware, so both paths behave identically.
 - **Origin check:** CORS doesn't apply to WebSocket upgrades, so `allowRequest` rejects
-  handshakes from origins not in `CLIENT_ORIGIN`. This prevents cross-site WebSocket hijacking.
+  handshakes from origins that aren't allowed. This prevents cross-site WebSocket hijacking.
 - **Rooms are server-controlled:** on connect, the server looks up the user's conversations
   and joins the socket to `conversation:<id>` rooms (plus `user:<id>`). Clients never ask to
   join a room. When a conversation is created over REST, the server joins both users' sockets
@@ -221,6 +221,26 @@ npm run dev
 To try real-time messaging, register two users in **two different browsers** (or a normal and
 a private window, since each needs its own cookie).
 
+**Optional demo data.** There are no built-in users. Every account is a real registration
+stored in MongoDB. For quick local testing, `npm run seed` creates two demo accounts
+(`alice@demo.com` and `bob@demo.com`, password `Password123`) and a short conversation in the
+database from `MONGODB_URI`. It is safe to run repeatedly, never changes existing accounts, and
+refuses to run when `NODE_ENV=production`. Don't seed a shared database whose users you don't
+control, because anyone who knows the demo password could log in.
+
+### 4. Test with a second device on the same Wi-Fi (optional)
+
+```bash
+npm run dev:lan
+```
+
+This runs the same development setup, but Vite listens on your network address and the API
+allows that origin. The script prints a URL such as `http://192.168.1.13:5173`. Open it on the
+other device (phone or laptop on the **same network**), register a second account, and chat. If
+the page doesn't load, allow Node.js through your firewall for _private_ networks. This is plain
+HTTP for local testing only. To reach someone outside your network, deploy (see
+[Deployment](#deployment)).
+
 ## Environment variables
 
 ### `server/.env`
@@ -232,13 +252,17 @@ a private window, since each needs its own cookie).
 | `NODE_ENV`               | no       | `development`           | `production` enables `Secure` cookies                                |
 | `PORT`                   | no       | `5000`                  | HTTP port                                                            |
 | `JWT_EXPIRES_IN_SECONDS` | no       | `604800` (7 days)       | Session length                                                       |
-| `CLIENT_ORIGIN`          | no       | `http://localhost:5173` | Comma-separated browser origins allowed (CORS + sockets)             |
+| `CLIENT_ORIGIN`          | see note | `http://localhost:5173` | Comma-separated browser origins allowed (CORS + sockets)             |
 | `COOKIE_SAME_SITE`       | no       | `lax`                   | `lax`, `strict`, or `none` (cross-site deployments; production only) |
 | `TRUST_PROXY`            | no       | `0`                     | Number of reverse proxies (use `1` on Render/Railway/Heroku)         |
 | `SERVE_CLIENT`           | no       | `false`                 | `true` = Express also serves `client/dist`                           |
 | `AUTH_RATE_LIMIT_MAX`    | no       | `20`                    | Login/register attempts per IP per 15 min                            |
 
 The server validates these on startup and exits with a clear message if something is missing.
+In production, at least one origin is required and each must be `https://` (except localhost)
+with no path. On Render, the service's public URL (`RENDER_EXTERNAL_URL`, set automatically by
+Render) is added to the allowed origins, so `CLIENT_ORIGIN` is only needed for a custom domain.
+The allowed origins are printed at startup.
 
 ### `client/.env` (optional)
 
@@ -252,6 +276,8 @@ The server validates these on startup and exits with a clear message if somethin
 | Command (from the repo root) | What it does                                          |
 | ---------------------------- | ----------------------------------------------------- |
 | `npm run dev`                | Server (auto-restart) and client together             |
+| `npm run dev:lan`            | Same, reachable from other devices on your network    |
+| `npm run seed`               | Optional demo accounts (development only)             |
 | `npm test`                   | All server tests, then all client tests               |
 | `npm run lint`               | oxlint for server and client                          |
 | `npm run build`              | Production build of the client into `client/dist`     |
@@ -272,7 +298,10 @@ npm test -w client       # component, reducer and API-client tests
   run downloads a MongoDB binary). Socket tests start a real HTTP server and connect several
   `socket.io-client` instances as different users. They cover registration and login, duplicate
   emails, protected routes, CSRF, conversation membership, history pagination, real-time
-  delivery, empty/invalid messages, duplicate retries, and origin checks.
+  delivery, empty/invalid messages, duplicate retries, and origin checks. A production-mode
+  suite simulates a Render deployment (`Secure` cookies, only the public origin accepted for
+  REST and WebSockets, per-IP login rate limiting behind the proxy, seed refusal), and config
+  tests cover origin validation.
 - **Client tests** use React Testing Library. Only the HTTP layer and the socket are replaced
   with fakes, so routing, state, and components run for real.
 - **Smoke test**: with a server running, `npm run smoke -w server` registers two throwaway
@@ -324,10 +353,9 @@ platforms don't suit Socket.IO.
 1. Push the repo to GitHub.
 2. In Render: _New → Blueprint_ → select the repo. `render.yaml` defines the build
    (`npm ci --include=dev && npm run build`), start (`npm start`) and health check.
-3. Set the two secret values when prompted:
-   - `MONGODB_URI`: your Atlas connection string
-   - `CLIENT_ORIGIN`: the public URL, e.g. `https://pulse-chat.onrender.com` (no trailing slash)
-     `JWT_SECRET` is generated by Render automatically.
+3. Enter `MONGODB_URI` (your Atlas connection string) when prompted. `JWT_SECRET` is
+   generated by Render, and the public URL is allowed automatically. Set `CLIENT_ORIGIN` only
+   if you add a custom domain.
 4. In Atlas _Network Access_, allow Render's outbound IPs (listed in the service's _Connect_
    tab), or `0.0.0.0/0` for a demo, relying on the strong database password.
 5. Visit the URL, register two users, and run the smoke test against it if you like:
@@ -340,8 +368,9 @@ Free Render instances sleep when idle; the first request after a pause takes a w
 - **HTTPS**: required. `NODE_ENV=production` marks cookies `Secure`, so they are only sent over
   HTTPS. Managed hosts provide TLS; behind your own proxy, terminate TLS there and set
   `TRUST_PROXY=1` so rate limiting sees real client IPs.
-- **CORS / origins**: `CLIENT_ORIGIN` must exactly match the browser's origin (scheme + host +
-  port). It controls both CORS and the WebSocket origin check.
+- **CORS / origins**: allowed origins must exactly match the browser's origin (scheme + host +
+  port). They control both CORS and the WebSocket origin check. The server refuses to start in
+  production without one, and logs the list at startup.
 - **Cookies**: keep `COOKIE_SAME_SITE=lax` for same-origin deployments. Only for a split
   deployment (frontend and API on different sites) use `none`, set the frontend's
   `VITE_API_URL` to the API URL, and list the frontend origin in `CLIENT_ORIGIN`. Note that

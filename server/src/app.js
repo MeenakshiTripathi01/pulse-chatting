@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -52,6 +53,12 @@ export function createApp() {
   app.use('/api', notFoundHandler);
 
   if (config.serveClient) {
+    if (!fs.existsSync(path.join(clientDistPath, 'index.html'))) {
+      throw new Error(
+        `SERVE_CLIENT=true but ${clientDistPath}/index.html does not exist. ` +
+          'Run "npm run build" first (Render does this in its build command).',
+      );
+    }
     app.use(express.static(clientDistPath, { index: false, maxAge: '1h' }));
     // Single-page app fallback: let React Router handle every non-API GET route.
     app.get('/{*splat}', (_req, res) => {

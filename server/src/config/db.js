@@ -14,10 +14,15 @@ export async function connectDatabase(uri) {
     console.error('[db] MongoDB connection error:', error.message);
   });
   mongoose.connection.on('disconnected', () => {
-    console.warn('[db] MongoDB disconnected; the driver will try to reconnect.');
+    if (!closingIntentionally) {
+      console.warn('[db] MongoDB disconnected; the driver will try to reconnect.');
+    }
   });
 }
 
+let closingIntentionally = false;
+
 export async function disconnectDatabase() {
+  closingIntentionally = true;
   await mongoose.disconnect();
 }

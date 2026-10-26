@@ -15,6 +15,8 @@ export function Sidebar({
   onLogout,
   conversations,
   activeConversationId,
+  presence,
+  typingIn,
   onRetryConversations,
   onStartConversation,
   className = '',
@@ -133,6 +135,8 @@ export function Sidebar({
             conversations={conversations}
             currentUserId={user.id}
             activeConversationId={activeConversationId}
+            presence={presence}
+            typingIn={typingIn}
             search={search}
             onRetry={onRetryConversations}
             onFindPeople={() => setTab('people')}

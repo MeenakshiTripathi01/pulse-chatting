@@ -6,6 +6,7 @@ export class FakeSocket {
   constructor() {
     this.handlers = new Map();
     this.connected = false;
+    this.emit = vi.fn();
     this.emitWithAck = vi.fn();
     this.io = { on: vi.fn(), off: vi.fn() };
   }

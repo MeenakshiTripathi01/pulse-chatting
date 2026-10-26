@@ -22,11 +22,14 @@ exchange messages that are delivered live and stored permanently.
 - **History**: cursor-paginated message history ("Load older messages").
 - **Live sidebar**: latest-message previews and ordering update as messages arrive; new
   conversations started by others appear automatically.
+- **Emojis**: an emoji picker in the message box inserts emojis at the cursor.
+- **Online status and typing indicators**: chat partners see a green dot and "Online", or "last
+  seen …" once you leave, and "typing…" while you write. Only people who share a conversation
+  with you receive your status.
 - **Responsive, accessible UI**: list/chat navigation on mobile, keyboard support, visible focus
   states, screen-reader labels, and explicit loading, empty, error, and offline states.
 
-Deliberately **not** included (rather than faked): online presence, typing indicators,
-read receipts, push notifications.
+Deliberately **not** included (rather than faked): read receipts, push notifications.
 
 ## Tech stack
 
@@ -97,7 +100,8 @@ realtime-chat/
 
 **User**: `name`, `username` (lowercased, **unique index**; optional only for accounts created
 before usernames existed), `email` (trimmed, lowercased, **unique index**), `passwordHash`
-(`select: false`, so it's never returned unless explicitly requested), timestamps.
+(`select: false`, so it's never returned unless explicitly requested), `lastSeenAt` (set when
+the user's last open connection closes), timestamps.
 
 **Conversation**: `type` (`"direct"` today, ready for `"group"` later), `participants`
 (array of user ids), `directKey` (the two participant ids sorted and joined), `lastMessage`
@@ -159,13 +163,23 @@ can't make it go backwards.
   to the new room and emits `conversation:new`.
 - **Events**
 
-  | Direction       | Event              | Payload                                                              |
-  | --------------- | ------------------ | -------------------------------------------------------------------- |
-  | client → server | `message:send`     | `{ conversationId, content, clientMessageId }` + ack callback        |
-  | server → client | ack                | `{ ok: true, message }` or `{ ok: false, error: { code, message } }` |
-  | server → room   | `message:new`      | `{ message }`                                                        |
-  | server → user   | `conversation:new` | `{ conversation }`                                                   |
-  | server → socket | `session:ready`    | `{ user }`: rooms joined, safe to resync                             |
+  | Direction       | Event               | Payload                                                              |
+  | --------------- | ------------------- | -------------------------------------------------------------------- |
+  | client → server | `message:send`      | `{ conversationId, content, clientMessageId }` + ack callback        |
+  | server → client | ack                 | `{ ok: true, message }` or `{ ok: false, error: { code, message } }` |
+  | server → room   | `message:new`       | `{ message }`                                                        |
+  | server → user   | `conversation:new`  | `{ conversation }`                                                   |
+  | server → socket | `session:ready`     | `{ user }`: rooms joined, safe to resync                             |
+  | client → server | `presence:get`      | `{ userIds }`; answered only for people sharing a conversation       |
+  | server → socket | `presence:snapshot` | `{ presence: { [userId]: { online, lastSeenAt } } }`                 |
+  | server → room   | `presence:update`   | `{ userId, online, lastSeenAt }` when first tab opens / last closes  |
+  | client → server | `typing`            | `{ conversationId, isTyping }`; ignored unless you're a member       |
+  | server → room   | `typing`            | `{ conversationId, userId, isTyping }` to the other members          |
+
+- **Presence and typing:** the server counts each user's open sockets, so a user stays online
+  while any tab is open. Typing senders repeat `isTyping: true` every 2.5 seconds while typing
+  and send `false` after 3 idle seconds or on send. Receivers also drop the indicator after
+  6 seconds without an update, so it can't get stuck if a tab closes mid-sentence.
 
 - **Delivery guarantees:** the ack is sent only after the message is stored. The client shows
   "Sending…" until then, and "Not sent · Retry" on an error or a 10-second timeout. Retries reuse
@@ -399,8 +413,10 @@ Free Render instances sleep when idle; the first request after a pause takes a w
 - User search uses a case-insensitive regex, which can't use an index efficiently. Fine for
   thousands of users; a text or Atlas Search index would be needed beyond that.
 - One-to-one conversations only (the schema has a `type` field to add groups later).
-- Messages can't be edited or deleted. There are no attachments, presence, typing indicators,
-  read receipts, or notifications.
+- Online status is tracked in server memory, so it resets if the server restarts (users reconnect
+  automatically and reappear online).
+- Messages can't be edited or deleted. There are no attachments, read receipts, or
+  notifications.
 - Saving a message and updating the conversation preview are two writes, not a transaction.
   If the second fails, the message is kept and the preview catches up with the next message.
 - Each user's email is visible to other signed-in users in the directory.

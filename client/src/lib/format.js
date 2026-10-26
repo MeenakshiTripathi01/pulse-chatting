@@ -59,6 +59,14 @@ export function getInitials(name = '') {
   return (first + last).toUpperCase();
 }
 
+/** "last seen today at 3:45 PM", "last seen yesterday at 9:10 AM", "last seen Mon". */
+export function formatLastSeen(iso, now = new Date()) {
+  const days = daysBetween(new Date(iso), now);
+  if (days <= 0) return `last seen today at ${formatMessageTime(iso)}`;
+  if (days === 1) return `last seen yesterday at ${formatMessageTime(iso)}`;
+  return `last seen ${formatConversationTime(iso, now)}`;
+}
+
 /** "@meenakshi" for accounts with a username, otherwise their email. */
 export function formatUserHandle(user) {
   return user.username ? `@${user.username}` : user.email;

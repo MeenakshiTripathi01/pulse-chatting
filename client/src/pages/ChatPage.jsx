@@ -5,6 +5,8 @@ import { Sidebar } from '../components/chat/Sidebar.jsx';
 import { useAuth } from '../context/authContext.js';
 import { useSocket } from '../context/socketContext.js';
 import { useChat } from '../hooks/useChat.js';
+import { usePresence } from '../hooks/usePresence.js';
+import { getOtherParticipant } from '../lib/format.js';
 
 export default function ChatPage() {
   const { user, logout } = useAuth();
@@ -14,6 +16,9 @@ export default function ChatPage() {
   const conversationId = match?.params.conversationId ?? null;
 
   const chat = useChat(conversationId);
+  const { presence, typingIn, startTyping, stopTyping } = usePresence(
+    chat.conversations.items.map((conversation) => getOtherParticipant(conversation, user.id).id),
+  );
 
   async function handleStartConversation(participantId) {
     const conversation = await chat.startConversation(participantId);
@@ -32,6 +37,8 @@ export default function ChatPage() {
           onLogout={logout}
           conversations={chat.conversations}
           activeConversationId={conversationId}
+          presence={connection === 'connected' ? presence : {}}
+          typingIn={connection === 'connected' ? typingIn : {}}
           onRetryConversations={chat.reloadConversations}
           onStartConversation={handleStartConversation}
           className={`${showChatOnMobile ? 'hidden' : 'flex'} w-full md:flex md:w-80 lg:w-96`}
@@ -42,7 +49,11 @@ export default function ChatPage() {
           thread={chat.activeThread}
           currentUserId={user.id}
           connection={connection}
+          presence={presence}
+          typingIn={typingIn}
           onSend={(content) => chat.sendMessage(conversationId, content)}
+          onTyping={() => startTyping(conversationId)}
+          onStopTyping={stopTyping}
           onRetryMessage={chat.retryMessage}
           onLoadOlder={() => chat.loadOlderMessages(conversationId)}
           onReloadThread={() => chat.reloadThread(conversationId)}

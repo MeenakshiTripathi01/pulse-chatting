@@ -79,6 +79,15 @@ export const messageContentSchema = z
   .min(1, 'Message cannot be empty')
   .max(MESSAGE_MAX_LENGTH, `Message must be at most ${MESSAGE_MAX_LENGTH} characters`);
 
+export const typingSchema = z.object({
+  conversationId: objectIdSchema,
+  isTyping: z.boolean(),
+});
+
+export const presenceQuerySchema = z.object({
+  userIds: z.array(objectIdSchema).max(200),
+});
+
 export const sendMessageSchema = z.object({
   conversationId: objectIdSchema,
   content: messageContentSchema,

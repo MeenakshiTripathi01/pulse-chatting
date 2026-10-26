@@ -315,7 +315,8 @@ describe('real-time updates', () => {
 
     expect(conversationsApi.createConversation).toHaveBeenCalledWith(carol.id);
     expect(await screen.findByRole('heading', { name: 'Carol Danvers' })).toBeInTheDocument();
-    expect(await screen.findByText('No messages yet')).toBeInTheDocument();
+    const chatPanel = screen.getByRole('region', { name: 'Chat with Carol Danvers' });
+    expect(await within(chatPanel).findByText('No messages yet')).toBeInTheDocument();
   });
 });
 
@@ -362,5 +363,85 @@ describe('connection state', () => {
 
     expect(await screen.findByRole('heading', { name: 'Welcome to Pulse' })).toBeInTheDocument();
     expect(screen.getByText('Your session has ended. Please log in again.')).toBeInTheDocument();
+  });
+});
+
+describe('emojis', () => {
+  it('inserts emojis from the picker at the cursor and sends them', async () => {
+    socket.emitWithAck.mockReturnValue(deferred().promise);
+    await openConversationWithBob();
+    const input = screen.getByRole('textbox', { name: 'Message Bob Builder' });
+
+    await userEvent.type(input, 'Great job');
+    await userEvent.click(screen.getByRole('button', { name: 'Add emoji' }));
+    const picker = screen.getByRole('dialog', { name: 'Emoji picker' });
+    await userEvent.click(within(picker).getByRole('button', { name: 'thumbs up' }));
+    await userEvent.click(within(picker).getByRole('button', { name: 'party popper' }));
+    expect(input).toHaveValue('Great job👍🎉');
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Emoji picker' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    expect(socket.emitWithAck).toHaveBeenCalledWith('message:send', {
+      conversationId: 'conv-1',
+      content: 'Great job👍🎉',
+      clientMessageId: expect.any(String),
+    });
+  });
+});
+
+describe('presence and typing', () => {
+  const chatHeader = () => screen.getByRole('heading', { name: 'Bob Builder' }).closest('header');
+
+  it("asks for chat partners' status and shows online, then last seen", async () => {
+    await openConversationWithBob();
+    expect(socket.emit).toHaveBeenCalledWith('presence:get', { userIds: [bob.id] });
+
+    await socket.serverEmit('presence:snapshot', {
+      presence: { [bob.id]: { online: true, lastSeenAt: null } },
+    });
+    expect(within(chatHeader()).getByText('Online')).toBeInTheDocument();
+    expect(within(sidebarList()).getByText('(online)')).toBeInTheDocument();
+
+    await socket.serverEmit('presence:update', {
+      userId: bob.id,
+      online: false,
+      lastSeenAt: new Date().toISOString(),
+    });
+    expect(within(chatHeader()).getByText(/^last seen today at/)).toBeInTheDocument();
+    expect(within(sidebarList()).queryByText('(online)')).not.toBeInTheDocument();
+  });
+
+  it('shows when the other person is typing until their message arrives', async () => {
+    await openConversationWithBob();
+
+    await socket.serverEmit('typing', { conversationId: 'conv-1', userId: bob.id, isTyping: true });
+    expect(within(chatHeader()).getByText('typing…')).toBeInTheDocument();
+    expect(within(sidebarList()).getByText('typing…')).toBeInTheDocument();
+
+    await socket.serverEmit('message:new', { message: message('m9', bob.id, 'Done!', 0) });
+    expect(screen.queryByText('typing…')).not.toBeInTheDocument();
+  });
+
+  it('ignores typing echoes of our own typing', async () => {
+    await openConversationWithBob();
+    await socket.serverEmit('typing', { conversationId: 'conv-1', userId: ada.id, isTyping: true });
+    expect(screen.queryByText('typing…')).not.toBeInTheDocument();
+  });
+
+  it('announces our typing, and stops when the message box is cleared', async () => {
+    await openConversationWithBob();
+    const input = screen.getByRole('textbox', { name: 'Message Bob Builder' });
+
+    await userEvent.type(input, 'Hel');
+    const typingEvents = () => socket.emit.mock.calls.filter(([event]) => event === 'typing');
+    expect(typingEvents()).toEqual([['typing', { conversationId: 'conv-1', isTyping: true }]]);
+
+    await userEvent.clear(input);
+    expect(typingEvents().at(-1)).toEqual([
+      'typing',
+      { conversationId: 'conv-1', isTyping: false },
+    ]);
   });
 });

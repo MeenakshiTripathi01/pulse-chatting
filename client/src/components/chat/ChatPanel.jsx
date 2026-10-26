@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { formatUserHandle, getOtherParticipant } from '../../lib/format.js';
+import { formatLastSeen, formatUserHandle, getOtherParticipant } from '../../lib/format.js';
 import { Alert } from '../ui/Alert.jsx';
 import { Avatar } from '../ui/Avatar.jsx';
 import { Button } from '../ui/Button.jsx';
@@ -36,13 +36,24 @@ function BackLink() {
   );
 }
 
+/** "Online", "last seen today at 3:45 PM", "Offline", or null while unknown. */
+function describePresence(status) {
+  if (!status) return null;
+  if (status.online) return 'Online';
+  return status.lastSeenAt ? formatLastSeen(status.lastSeenAt) : 'Offline';
+}
+
 export function ChatPanel({
   conversationId,
   conversation,
   thread,
   currentUserId,
   connection,
+  presence = {},
+  typingIn = {},
   onSend,
+  onTyping,
+  onStopTyping,
   onRetryMessage,
   onLoadOlder,
   onReloadThread,
@@ -81,6 +92,10 @@ export function ChatPanel({
 
   const other = conversation ? getOtherParticipant(conversation, currentUserId) : null;
   const isConnected = connection === 'connected';
+  // While we're disconnected, their status may be out of date, so don't show it.
+  const otherStatus = isConnected && other ? presence[other.id] : null;
+  const otherIsTyping = isConnected && Boolean(typingIn[conversationId]);
+  const presenceText = describePresence(otherStatus);
 
   let body;
   if (!thread || thread.status === 'loading' || thread.status === 'idle') {
@@ -135,10 +150,26 @@ export function ChatPanel({
         <BackLink />
         {other ? (
           <>
-            <Avatar name={other.name} seed={other.id} />
+            <Avatar name={other.name} seed={other.id} online={Boolean(otherStatus?.online)} />
             <div className="min-w-0">
               <h2 className="truncate font-semibold text-slate-900">{other.name}</h2>
-              <p className="truncate text-sm text-slate-600">{formatUserHandle(other)}</p>
+              <p className="truncate text-sm text-slate-600">
+                {otherIsTyping ? (
+                  <span className="font-medium text-emerald-700">typing…</span>
+                ) : (
+                  <>
+                    {formatUserHandle(other)}
+                    {presenceText && (
+                      <>
+                        {' · '}
+                        <span className={otherStatus.online ? 'font-medium text-emerald-700' : ''}>
+                          {presenceText}
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
+              </p>
             </div>
           </>
         ) : (
@@ -153,6 +184,8 @@ export function ChatPanel({
           key={conversationId}
           recipientName={other.name}
           onSend={onSend}
+          onTyping={onTyping}
+          onStopTyping={onStopTyping}
           disabled={!isConnected}
           disabledReason="Waiting for connection. You can send once you're back online."
         />

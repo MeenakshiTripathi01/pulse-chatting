@@ -3,7 +3,7 @@ import { User } from '../models/User.js';
 import { AppError } from '../utils/AppError.js';
 import { toConversationDto } from '../utils/serializers.js';
 
-const PARTICIPANT_FIELDS = 'name email';
+const PARTICIPANT_FIELDS = 'name username email';
 
 export async function listConversations(userId) {
   const conversations = await Conversation.find({ participants: userId })
@@ -76,4 +76,16 @@ export async function findOrCreateDirectConversation(currentUserId, participantI
 export async function listConversationIdsForUser(userId) {
   const conversations = await Conversation.find({ participants: userId }).select('_id').lean();
   return conversations.map((conversation) => String(conversation._id));
+}
+
+/** Ids of everyone the user shares a conversation with (excluding the user). */
+export async function listConversationPartnerIds(userId) {
+  const conversations = await Conversation.find({ participants: userId })
+    .select('participants')
+    .lean();
+  const partnerIds = new Set(
+    conversations.flatMap((conversation) => conversation.participants.map(String)),
+  );
+  partnerIds.delete(String(userId));
+  return partnerIds;
 }

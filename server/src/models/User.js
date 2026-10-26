@@ -17,6 +17,8 @@ const userSchema = new mongoose.Schema(
     username: { type: String, trim: true, lowercase: true, minlength: 3, maxlength: 20 },
     // `select: false` means queries never return the hash unless explicitly requested.
     passwordHash: { type: String, required: true, select: false },
+    // Set when the user's last open socket disconnects; shown as "last seen" to chat partners.
+    lastSeenAt: { type: Date },
   },
   { timestamps: true },
 );

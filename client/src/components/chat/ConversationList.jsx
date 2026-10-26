@@ -29,6 +29,8 @@ export function ConversationList({
   conversations,
   currentUserId,
   activeConversationId,
+  presence = {},
+  typingIn = {},
   search,
   onRetry,
   onFindPeople,
@@ -106,6 +108,8 @@ export function ConversationList({
         const preview = lastMessage
           ? `${lastMessage.senderId === currentUserId ? 'You: ' : ''}${lastMessage.content}`
           : 'No messages yet';
+        const isOnline = Boolean(presence[other.id]?.online);
+        const isTyping = Boolean(typingIn[conversation.id]);
 
         return (
           <li key={conversation.id}>
@@ -116,10 +120,13 @@ export function ConversationList({
                 isActive ? 'bg-brand-50' : 'hover:bg-slate-50'
               }`}
             >
-              <Avatar name={other.name} seed={other.id} />
+              <Avatar name={other.name} seed={other.id} online={isOnline} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-medium text-slate-900">{other.name}</span>
+                  <span className="truncate font-medium text-slate-900">
+                    {other.name}
+                    {isOnline && <span className="sr-only"> (online)</span>}
+                  </span>
                   {lastMessage && (
                     <time
                       dateTime={lastMessage.createdAt}
@@ -130,11 +137,17 @@ export function ConversationList({
                     </time>
                   )}
                 </span>
-                <span
-                  className={`block truncate text-sm ${lastMessage ? 'text-slate-600' : 'italic text-slate-500'}`}
-                >
-                  {preview}
-                </span>
+                {isTyping ? (
+                  <span className="block truncate text-sm font-medium text-emerald-700">
+                    typing…
+                  </span>
+                ) : (
+                  <span
+                    className={`block truncate text-sm ${lastMessage ? 'text-slate-600' : 'italic text-slate-500'}`}
+                  >
+                    {preview}
+                  </span>
+                )}
               </span>
             </Link>
           </li>

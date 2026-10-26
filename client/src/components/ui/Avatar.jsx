@@ -16,14 +16,18 @@ function colorFor(seed = '') {
   return PALETTE[hash % PALETTE.length];
 }
 
-export function Avatar({ name, seed, size = 'md' }) {
+/** Decorative; `online` adds a green dot, so callers should also say "online" in text. */
+export function Avatar({ name, seed, size = 'md', online = false }) {
   const sizes = { sm: 'size-8 text-xs', md: 'size-10 text-sm', lg: 'size-11 text-sm' };
   return (
     <span
       aria-hidden="true"
-      className={`grid shrink-0 place-items-center rounded-full font-semibold ${sizes[size]} ${colorFor(seed ?? name)}`}
+      className={`relative grid shrink-0 place-items-center rounded-full font-semibold ${sizes[size]} ${colorFor(seed ?? name)}`}
     >
       {getInitials(name)}
+      {online && (
+        <span className="absolute right-0 bottom-0 size-3 rounded-full bg-emerald-500 ring-2 ring-white" />
+      )}
     </span>
   );
 }

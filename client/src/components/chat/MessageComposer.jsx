@@ -1,11 +1,27 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MESSAGE_MAX_LENGTH } from '../../lib/validation.js';
+import { EmojiPicker } from './EmojiPicker.jsx';
 
 const MAX_TEXTAREA_HEIGHT_PX = 160;
 
-export function MessageComposer({ onSend, disabled, disabledReason, recipientName }) {
+export function MessageComposer({
+  onSend,
+  onTyping,
+  onStopTyping,
+  disabled,
+  disabledReason,
+  recipientName,
+}) {
   const [value, setValue] = useState('');
   const textareaRef = useRef(null);
+  // Where to put the caret after an emoji is inserted (applied once React has re-rendered).
+  const pendingCaretRef = useRef(null);
+  const onStopTypingRef = useRef(onStopTyping);
+  useEffect(() => {
+    onStopTypingRef.current = onStopTyping;
+  });
+  // Leaving the conversation (this component is keyed by conversation) ends our typing.
+  useEffect(() => () => onStopTypingRef.current?.(), []);
 
   const trimmed = value.trim();
   const tooLong = trimmed.length > MESSAGE_MAX_LENGTH;
@@ -18,11 +34,31 @@ export function MessageComposer({ onSend, disabled, disabledReason, recipientNam
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
+    if (pendingCaretRef.current !== null) {
+      el.setSelectionRange(pendingCaretRef.current, pendingCaretRef.current);
+      pendingCaretRef.current = null;
+    }
   }, [value]);
+
+  function updateValue(next) {
+    setValue(next);
+    if (next.trim()) onTyping?.();
+    else onStopTyping?.();
+  }
+
+  /** Inserts at the caret (replacing any selection), so emojis can go mid-sentence. */
+  function insertEmoji(emoji) {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? value.length;
+    pendingCaretRef.current = start + emoji.length;
+    updateValue(value.slice(0, start) + emoji + value.slice(end));
+  }
 
   function submit() {
     if (!canSend) return;
     onSend(trimmed);
+    onStopTyping?.();
     setValue('');
     textareaRef.current?.focus();
   }
@@ -45,6 +81,7 @@ export function MessageComposer({ onSend, disabled, disabledReason, recipientNam
       className="border-t border-slate-200 bg-white px-3 py-3 sm:px-6"
     >
       <div className="flex items-end gap-2">
+        <EmojiPicker onSelect={insertEmoji} />
         <label htmlFor="message-input" className="sr-only">
           Message {recipientName}
         </label>
@@ -53,7 +90,7 @@ export function MessageComposer({ onSend, disabled, disabledReason, recipientNam
           ref={textareaRef}
           rows={1}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => updateValue(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={`Message ${recipientName}`}
           aria-describedby="composer-help"

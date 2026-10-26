@@ -3,6 +3,7 @@ import { io as connectClient } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { Message } from '../src/models/Message.js';
+import { User } from '../src/models/User.js';
 import { createSocketServer } from '../src/socket/index.js';
 import { registerClient } from './helpers/clients.js';
 import { clearTestDatabase, connectTestDatabase, disconnectTestDatabase } from './helpers/db.js';
@@ -221,5 +222,91 @@ describe('real-time messaging', () => {
     const malloryReceives = waitForEvent(mallorySocket, 'message:new');
     await send(aliceSocket, { conversationId: conversation.id, content: 'Welcome!' });
     expect((await malloryReceives).message.content).toBe('Welcome!');
+  });
+
+  it('stores and delivers emoji messages unchanged', async () => {
+    const aliceSocket = await connectAs(alice);
+    const ack = await send(aliceSocket, { conversationId, content: 'Hi 👋 ❤️🔥' });
+    expect(ack.message.content).toBe('Hi 👋 ❤️🔥');
+  });
+});
+
+describe('presence', () => {
+  it('tells chat partners when a user comes online and goes offline, and saves last seen', async () => {
+    const bobSocket = await connectAs(bob);
+    const mallorySocket = await connectAs(mallory);
+    const malloryUpdates = collectEvents(mallorySocket, 'presence:update');
+
+    const cameOnline = waitForEvent(bobSocket, 'presence:update');
+    const aliceSocket = await connectAs(alice);
+    expect(await cameOnline).toEqual({ userId: alice.user.id, online: true, lastSeenAt: null });
+
+    const wentOffline = waitForEvent(bobSocket, 'presence:update');
+    aliceSocket.disconnect();
+    const offline = await wentOffline;
+    expect(offline).toMatchObject({ userId: alice.user.id, online: false });
+    expect(Date.parse(offline.lastSeenAt)).not.toBeNaN();
+
+    await delay(200);
+    expect(malloryUpdates).toEqual([]);
+    const stored = await User.findById(alice.user.id).lean();
+    expect(stored.lastSeenAt.toISOString()).toBe(offline.lastSeenAt);
+  });
+
+  it('stays online while the user still has another tab open', async () => {
+    const bobSocket = await connectAs(bob);
+    const aliceTab1 = await connectAs(alice);
+    const aliceTab2 = await connectAs(alice);
+    const bobUpdates = collectEvents(bobSocket, 'presence:update');
+
+    aliceTab1.disconnect();
+    await delay(200);
+    expect(bobUpdates).toEqual([]);
+
+    aliceTab2.disconnect();
+    await delay(200);
+    expect(bobUpdates).toMatchObject([{ userId: alice.user.id, online: false }]);
+  });
+
+  it('answers presence queries only about chat partners', async () => {
+    await connectAs(bob);
+    await connectAs(mallory);
+    const aliceSocket = await connectAs(alice);
+    const snapshot = waitForEvent(aliceSocket, 'presence:snapshot');
+
+    aliceSocket.emit('presence:get', { userIds: [bob.user.id, mallory.user.id] });
+
+    expect((await snapshot).presence).toEqual({
+      [bob.user.id]: { online: true, lastSeenAt: null },
+    });
+  });
+});
+
+describe('typing indicators', () => {
+  it("forwards typing to the conversation's other members only", async () => {
+    const aliceSocket = await connectAs(alice);
+    const bobSocket = await connectAs(bob);
+    const mallorySocket = await connectAs(mallory);
+    const malloryInbox = collectEvents(mallorySocket, 'typing');
+    const bobReceives = waitForEvent(bobSocket, 'typing');
+
+    aliceSocket.emit('typing', { conversationId, isTyping: true });
+
+    expect(await bobReceives).toEqual({ conversationId, userId: alice.user.id, isTyping: true });
+    await delay(200);
+    expect(malloryInbox).toEqual([]);
+  });
+
+  it('ignores typing events from non-members and malformed payloads', async () => {
+    const bobSocket = await connectAs(bob);
+    const mallorySocket = await connectAs(mallory);
+    const bobInbox = collectEvents(bobSocket, 'typing');
+
+    mallorySocket.emit('typing', { conversationId, isTyping: true });
+    mallorySocket.emit('typing', { conversationId: 'nope', isTyping: true });
+    mallorySocket.emit('typing', 'not an object');
+    await delay(200);
+
+    expect(bobInbox).toEqual([]);
   });
 });

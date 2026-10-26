@@ -229,6 +229,68 @@ describe('real-time messaging', () => {
     const ack = await send(aliceSocket, { conversationId, content: 'Hi 👋 ❤️🔥' });
     expect(ack.message.content).toBe('Hi 👋 ❤️🔥');
   });
+
+  it('delivers replies with a quote of the original message', async () => {
+    const aliceSocket = await connectAs(alice);
+    const bobSocket = await connectAs(bob);
+    const bobInbox = collectEvents(bobSocket, 'message:new');
+    const original = await send(aliceSocket, { conversationId, content: 'Lunch at 1?' });
+
+    const reply = await send(aliceSocket, {
+      conversationId,
+      content: 'Or 2?',
+      replyToId: original.message.id,
+    });
+    await delay(200);
+
+    expect(reply.ok).toBe(true);
+    const received = bobInbox.find((event) => event.message.id === reply.message.id);
+    expect(received.message.replyTo).toEqual({
+      id: original.message.id,
+      senderId: alice.user.id,
+      content: 'Lunch at 1?',
+      deleted: false,
+    });
+  });
+
+  it('rejects malformed reply ids', async () => {
+    const aliceSocket = await connectAs(alice);
+    const ack = await send(aliceSocket, { conversationId, content: 'Hi', replyToId: 'nope' });
+    expect(ack.error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+describe('deleting', () => {
+  it('tells both participants in real time when a message is deleted', async () => {
+    const aliceSocket = await connectAs(alice);
+    const bobSocket = await connectAs(bob);
+    const mallorySocket = await connectAs(mallory);
+    const malloryInbox = collectEvents(mallorySocket, 'message:deleted');
+    const { message } = await send(aliceSocket, { conversationId, content: 'Delete me' });
+
+    const bobNotified = waitForEvent(bobSocket, 'message:deleted');
+    const aliceNotified = waitForEvent(aliceSocket, 'message:deleted');
+    await alice.delete(`/api/conversations/${conversationId}/messages/${message.id}`);
+
+    for (const event of [await bobNotified, await aliceNotified]) {
+      expect(event.message).toMatchObject({ id: message.id, deleted: true, content: '' });
+    }
+    await delay(200);
+    expect(malloryInbox).toEqual([]);
+  });
+
+  it("syncs a deleted chat to the user's other tabs but not to the other participant", async () => {
+    const aliceTab = await connectAs(alice);
+    const bobSocket = await connectAs(bob);
+    const bobInbox = collectEvents(bobSocket, 'conversation:deleted');
+
+    const aliceNotified = waitForEvent(aliceTab, 'conversation:deleted');
+    await alice.delete(`/api/conversations/${conversationId}`);
+
+    expect(await aliceNotified).toEqual({ conversationId });
+    await delay(200);
+    expect(bobInbox).toEqual([]);
+  });
 });
 
 describe('presence', () => {

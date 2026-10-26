@@ -19,13 +19,20 @@ vi.mock('../api/conversations.js', () => ({
   getConversation: vi.fn(),
   createConversation: vi.fn(),
   listMessages: vi.fn(),
+  deleteConversation: vi.fn(),
+  deleteMessage: vi.fn(),
 }));
 vi.mock('../api/users.js', () => ({ searchUsers: vi.fn() }));
 vi.mock('../lib/socket.js', () => ({ createSocket: vi.fn() }));
 
 const ada = { id: 'u-ada', name: 'Ada Lovelace', email: 'ada@example.com' };
 const bob = { id: 'u-bob', name: 'Bob Builder', email: 'bob@example.com' };
-const carol = { id: 'u-carol', name: 'Carol Danvers', email: 'carol@example.com' };
+const carol = {
+  id: 'u-carol',
+  name: 'Carol Danvers',
+  username: 'carol',
+  email: 'carol@example.com',
+};
 
 const now = Date.now();
 const iso = (minutesAgo) => new Date(now - minutesAgo * 60_000).toISOString();
@@ -95,14 +102,18 @@ describe('conversation list', () => {
     expect(screen.getByText('Select a conversation')).toBeInTheDocument();
   });
 
-  it('shows an empty state that leads to the people directory', async () => {
+  it('shows an empty state that leads to the people search', async () => {
     conversationsApi.listConversations.mockResolvedValue([]);
     renderApp('/');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Find people' }));
+    expect(screen.getByText('Find people by username')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByRole('searchbox'), '@car');
     expect(
       await screen.findByRole('button', { name: 'Message Carol Danvers' }),
     ).toBeInTheDocument();
+    expect(usersApi.searchUsers).toHaveBeenLastCalledWith('car', expect.anything());
   });
 
   it('shows an error with a working retry', async () => {
@@ -311,6 +322,7 @@ describe('real-time updates', () => {
     renderApp('/');
 
     await userEvent.click(await screen.findByRole('tab', { name: 'People' }));
+    await userEvent.type(screen.getByRole('searchbox'), 'carol');
     await userEvent.click(await screen.findByRole('button', { name: 'Message Carol Danvers' }));
 
     expect(conversationsApi.createConversation).toHaveBeenCalledWith(carol.id);
@@ -388,6 +400,141 @@ describe('emojis', () => {
       content: 'Great job👍🎉',
       clientMessageId: expect.any(String),
     });
+  });
+});
+
+describe('people search', () => {
+  it('does not list anyone until a username is typed', async () => {
+    renderApp('/');
+    await userEvent.click(await screen.findByRole('tab', { name: 'People' }));
+
+    expect(screen.getByText('Find people by username')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'People' })).not.toBeInTheDocument();
+    expect(usersApi.searchUsers).not.toHaveBeenCalled();
+  });
+
+  it('explains when no username matches', async () => {
+    usersApi.searchUsers.mockResolvedValue([]);
+    renderApp('/');
+    await userEvent.click(await screen.findByRole('tab', { name: 'People' }));
+
+    await userEvent.type(screen.getByRole('searchbox'), 'zed');
+    expect(await screen.findByText('No people found')).toBeInTheDocument();
+    expect(screen.getByText(/No username starts with "zed"/)).toBeInTheDocument();
+  });
+});
+
+describe('replies', () => {
+  it('replies to a specific message and shows the quote', async () => {
+    socket.emitWithAck.mockReturnValue(deferred().promise);
+    await openConversationWithBob();
+    const bobsMessage = within(messageLog()).getByText('See you soon', { selector: 'div' });
+
+    await userEvent.click(within(bobsMessage.closest('li')).getByRole('button', { name: 'Reply' }));
+    const input = screen.getByRole('textbox', { name: 'Message Bob Builder' });
+    expect(input).toHaveFocus();
+    expect(screen.getByText('Replying to Bob Builder')).toBeInTheDocument();
+
+    await userEvent.type(input, 'Me too!{Enter}');
+
+    expect(socket.emitWithAck).toHaveBeenCalledWith('message:send', {
+      conversationId: 'conv-1',
+      content: 'Me too!',
+      clientMessageId: expect.any(String),
+      replyToId: 'm2',
+    });
+    expect(screen.queryByText('Replying to Bob Builder')).not.toBeInTheDocument();
+    const sent = within(messageLog()).getByText('Me too!', { selector: 'div' });
+    expect(within(sent).getByText('Bob Builder')).toBeInTheDocument();
+    expect(within(sent).getByText('See you soon')).toBeInTheDocument();
+  });
+
+  it('can cancel a reply with the button or Escape', async () => {
+    await openConversationWithBob();
+    const firstMessage = within(messageLog()).getByText('Hello Bob').closest('li');
+
+    await userEvent.click(within(firstMessage).getByRole('button', { name: 'Reply' }));
+    expect(screen.getByText('Replying to yourself')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel reply' }));
+    expect(screen.queryByText('Replying to yourself')).not.toBeInTheDocument();
+
+    await userEvent.click(within(firstMessage).getByRole('button', { name: 'Reply' }));
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByText('Replying to yourself')).not.toBeInTheDocument();
+  });
+});
+
+describe('deleting', () => {
+  it('deletes my own message for everyone after confirming', async () => {
+    conversationsApi.deleteMessage.mockResolvedValue(
+      message('m1', ada.id, '', 10, { deleted: true }),
+    );
+    await openConversationWithBob();
+    const mine = within(messageLog()).getByText('Hello Bob').closest('li');
+    const bobs = within(messageLog()).getByText('See you soon', { selector: 'div' }).closest('li');
+    expect(within(bobs).queryByRole('button', { name: 'Delete message' })).not.toBeInTheDocument();
+
+    await userEvent.click(within(mine).getByRole('button', { name: 'Delete message' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete message?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete for everyone' }));
+
+    expect(conversationsApi.deleteMessage).toHaveBeenCalledWith('conv-1', 'm1');
+    expect(await within(messageLog()).findByText('This message was deleted')).toBeInTheDocument();
+    expect(within(messageLog()).queryByText('Hello Bob')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps the message and shows the error when deleting fails', async () => {
+    conversationsApi.deleteMessage.mockRejectedValue(
+      apiError(403, { message: 'You can only delete your own messages' }),
+    );
+    await openConversationWithBob();
+    const mine = within(messageLog()).getByText('Hello Bob').closest('li');
+
+    await userEvent.click(within(mine).getByRole('button', { name: 'Delete message' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete for everyone' }));
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'You can only delete your own messages',
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(within(messageLog()).getByText('Hello Bob')).toBeInTheDocument();
+  });
+
+  it('shows messages deleted by the other person in real time', async () => {
+    await openConversationWithBob();
+
+    await socket.serverEmit('message:deleted', {
+      message: message('m2', bob.id, '', 5, { deleted: true }),
+    });
+
+    expect(within(messageLog()).getByText('This message was deleted')).toBeInTheDocument();
+    expect(within(sidebarList()).getByText('This message was deleted')).toBeInTheDocument();
+    expect(screen.queryByText('See you soon')).not.toBeInTheDocument();
+  });
+
+  it('deletes the chat from my list after confirming', async () => {
+    conversationsApi.deleteConversation.mockResolvedValue();
+    await openConversationWithBob();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete chat' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete this chat?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete chat' }));
+
+    expect(conversationsApi.deleteConversation).toHaveBeenCalledWith('conv-1');
+    expect(await screen.findByText('Select a conversation')).toBeInTheDocument();
+    expect(screen.getByText('No conversations yet')).toBeInTheDocument();
+    expect(conversationsApi.getConversation).not.toHaveBeenCalled();
+  });
+
+  it('removes a chat deleted in another tab', async () => {
+    await openConversationWithBob();
+
+    await socket.serverEmit('conversation:deleted', { conversationId: 'conv-1' });
+
+    expect(await screen.findByText('Select a conversation')).toBeInTheDocument();
+    expect(screen.getByText('No conversations yet')).toBeInTheDocument();
   });
 });
 

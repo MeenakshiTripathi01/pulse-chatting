@@ -68,6 +68,11 @@ export const conversationParamsSchema = z.object({
   conversationId: objectIdSchema,
 });
 
+export const messageParamsSchema = z.object({
+  conversationId: objectIdSchema,
+  messageId: objectIdSchema,
+});
+
 export const messageHistoryQuerySchema = z.object({
   before: objectIdSchema.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
@@ -98,4 +103,5 @@ export const sendMessageSchema = z.object({
     .max(64)
     .regex(/^[\w-]+$/, 'Invalid client message id')
     .optional(),
+  replyToId: objectIdSchema.optional(),
 });

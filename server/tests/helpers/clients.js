@@ -15,6 +15,7 @@ export async function createClient(app) {
     csrfToken,
     get: (url) => agent.get(url),
     post: (url, body) => agent.post(url).set('X-CSRF-Token', csrfToken).send(body),
+    delete: (url) => agent.delete(url).set('X-CSRF-Token', csrfToken),
   };
 }
 

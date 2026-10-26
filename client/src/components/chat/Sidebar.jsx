@@ -98,7 +98,7 @@ export function Sidebar({
 
         <label className="relative block">
           <span className="sr-only">
-            {tab === 'chats' ? 'Search conversations' : 'Search people'}
+            {tab === 'chats' ? 'Search conversations' : 'Search people by username'}
           </span>
           <svg
             aria-hidden="true"
@@ -116,9 +116,7 @@ export function Sidebar({
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={
-              tab === 'chats' ? 'Search conversations' : 'Search by name, @username or email'
-            }
+            placeholder={tab === 'chats' ? 'Search conversations' : 'Search by @username'}
             className="block w-full rounded-lg border border-slate-300 bg-white py-2 pr-3 pl-9 text-sm placeholder:text-slate-500 focus:border-brand-500 focus:outline-2 focus:outline-brand-500"
           />
         </label>
@@ -128,7 +126,7 @@ export function Sidebar({
         id={`panel-${tab}`}
         role="tabpanel"
         aria-labelledby={`tab-${tab}`}
-        className="min-h-0 flex-1 overflow-y-auto border-t border-slate-100"
+        className="relative min-h-0 flex-1 overflow-y-auto border-t border-slate-100"
       >
         {tab === 'chats' ? (
           <ConversationList

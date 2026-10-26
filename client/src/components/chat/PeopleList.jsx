@@ -24,6 +24,15 @@ export function PeopleList({ search, onStartConversation }) {
     }
   }
 
+  if (status === 'idle') {
+    return (
+      <EmptyState
+        title="Find people by username"
+        description="Type the start of someone's username, like @alice, to find them."
+      />
+    );
+  }
+
   if (status === 'loading' && users.length === 0) {
     return (
       <div className="flex items-center justify-center gap-2 p-6 text-sm text-slate-600">
@@ -52,12 +61,8 @@ export function PeopleList({ search, onStartConversation }) {
   if (users.length === 0) {
     return (
       <EmptyState
-        title={search.trim() ? 'No people found' : 'No other users yet'}
-        description={
-          search.trim()
-            ? `No one matches "${search.trim()}". Try a different name, username or email.`
-            : 'Invite a friend to register, then start chatting.'
-        }
+        title="No people found"
+        description={`No username starts with "${search.trim().replace(/^@/, '')}". Check the spelling and try again.`}
       />
     );
   }

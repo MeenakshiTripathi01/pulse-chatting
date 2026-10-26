@@ -11,9 +11,18 @@ export function MessageComposer({
   disabled,
   disabledReason,
   recipientName,
+  replyingTo = null,
+  replyingToName = '',
+  onCancelReply,
 }) {
   const [value, setValue] = useState('');
   const textareaRef = useRef(null);
+  const replyingToId = replyingTo?.id;
+
+  // Choosing "Reply" on a message moves the cursor here, ready to type.
+  useEffect(() => {
+    if (replyingToId) textareaRef.current?.focus();
+  }, [replyingToId]);
   // Where to put the caret after an emoji is inserted (applied once React has re-rendered).
   const pendingCaretRef = useRef(null);
   const onStopTypingRef = useRef(onStopTyping);
@@ -69,6 +78,9 @@ export function MessageComposer({
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       submit();
+    } else if (event.key === 'Escape' && replyingTo) {
+      event.preventDefault();
+      onCancelReply?.();
     }
   }
 
@@ -80,6 +92,27 @@ export function MessageComposer({
       }}
       className="border-t border-slate-200 bg-white px-3 py-3 sm:px-6"
     >
+      {replyingTo && (
+        <div
+          role="status"
+          className="mb-2 flex items-start gap-2 rounded-lg border-l-4 border-brand-500 bg-slate-100 py-1.5 pr-1.5 pl-3 text-sm"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-brand-700">Replying to {replyingToName}</p>
+            <p className="truncate text-slate-700">{replyingTo.content}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            aria-label="Cancel reply"
+            className="grid size-7 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-brand-600"
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="size-4">
+              <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+            </svg>
+          </button>
+        </div>
+      )}
       <div className="flex items-end gap-2">
         <EmojiPicker onSelect={insertEmoji} />
         <label htmlFor="message-input" className="sr-only">

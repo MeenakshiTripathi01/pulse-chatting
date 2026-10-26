@@ -4,15 +4,19 @@ import { searchUsers } from '../api/users.js';
 
 const DEBOUNCE_MS = 300;
 
-/** Searches the user directory, waiting until typing pauses and cancelling stale requests. */
+/**
+ * Searches people by username, waiting until typing pauses and cancelling stale requests.
+ * Nothing is fetched (status "idle") until there is something to search for.
+ */
 export function useUserSearch(search) {
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState({ key: null, users: [], error: null });
 
-  const query = search.trim();
+  const query = search.trim().replace(/^@/, '');
   const key = `${attempt}:${query}`;
 
   useEffect(() => {
+    if (!query) return undefined;
     const controller = new AbortController();
 
     const timer = setTimeout(async () => {
@@ -32,6 +36,8 @@ export function useUserSearch(search) {
   }, [key, query]);
 
   const retry = useCallback(() => setAttempt((count) => count + 1), []);
+
+  if (!query) return { status: 'idle', users: [], error: null, retry };
 
   // The result is "loading" until a response for the current query has arrived.
   let status = 'success';

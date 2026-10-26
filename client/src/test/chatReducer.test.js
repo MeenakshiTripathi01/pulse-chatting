@@ -132,6 +132,37 @@ describe('chatReducer', () => {
     expect(next.threads).toEqual({});
   });
 
+  it('blanks a deleted message, quotes of it, and the preview', () => {
+    const original = msg('a', '2026-01-01T00:00:01.000Z');
+    const reply = msg('b', '2026-01-01T00:00:02.000Z', {
+      replyTo: { id: 'a', senderId: 'u1', content: 'content a', deleted: false },
+    });
+    const conversation = {
+      id: 'c1',
+      lastMessage: { id: 'a', content: 'content a', createdAt: original.createdAt },
+      lastMessageAt: original.createdAt,
+    };
+    const state = stateWithThread([original, reply], [conversation]);
+
+    const next = chatReducer(state, {
+      type: 'message/deleted',
+      message: { ...original, content: '', deleted: true },
+    });
+
+    expect(next.threads.c1.messages[0]).toMatchObject({ id: 'a', content: '', deleted: true });
+    expect(next.threads.c1.messages[1].replyTo).toMatchObject({ content: '', deleted: true });
+    expect(next.conversations.items[0].lastMessage).toMatchObject({ content: '', deleted: true });
+  });
+
+  it('removes a deleted conversation and forgets its thread', () => {
+    const state = stateWithThread([msg('a', '2026-01-01T00:00:01.000Z')], [{ id: 'c1' }]);
+
+    const next = chatReducer(state, { type: 'conversation/removed', conversationId: 'c1' });
+
+    expect(next.conversations.items).toEqual([]);
+    expect(next.threads).toEqual({});
+  });
+
   it('starts over after a resync that does not overlap with the messages we have', () => {
     const state = stateWithThread([msg('a', '2026-01-01T00:00:01.000Z'), pending('cid-1')]);
 

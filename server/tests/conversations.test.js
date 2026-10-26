@@ -177,3 +177,166 @@ describe('GET /api/conversations/:id/messages', () => {
     expect(res.body.error.code).toBe('INVALID_CURSOR');
   });
 });
+
+describe('DELETE /api/conversations/:id', () => {
+  it('removes the chat and its history for me only, and new messages bring it back', async () => {
+    const conversation = await startConversation(alice, bob);
+    await sendMessage({ conversationId: conversation.id, senderId: bob.user.id, content: 'Old' });
+
+    const res = await alice.delete(`/api/conversations/${conversation.id}`);
+    expect(res.status).toBe(204);
+
+    expect((await alice.get('/api/conversations')).body.conversations).toEqual([]);
+    const aliceHistory = await alice.get(`/api/conversations/${conversation.id}/messages`);
+    expect(aliceHistory.body.messages).toEqual([]);
+    const details = await alice.get(`/api/conversations/${conversation.id}`);
+    expect(details.body.conversation.lastMessage).toBeNull();
+
+    // Bob still has everything.
+    const bobHistory = await bob.get(`/api/conversations/${conversation.id}/messages`);
+    expect(bobHistory.body.messages.map((m) => m.content)).toEqual(['Old']);
+    expect((await bob.get('/api/conversations')).body.conversations).toHaveLength(1);
+
+    await sendMessage({ conversationId: conversation.id, senderId: bob.user.id, content: 'New' });
+
+    const list = await alice.get('/api/conversations');
+    expect(list.body.conversations.map((c) => c.lastMessage.content)).toEqual(['New']);
+    const newHistory = await alice.get(`/api/conversations/${conversation.id}/messages`);
+    expect(newHistory.body.messages.map((m) => m.content)).toEqual(['New']);
+  });
+
+  it('can be repeated without duplicating state', async () => {
+    const conversation = await startConversation(alice, bob);
+    await alice.delete(`/api/conversations/${conversation.id}`);
+    await alice.delete(`/api/conversations/${conversation.id}`);
+
+    const stored = await Conversation.findById(conversation.id).lean();
+    expect(stored.clearedBy).toHaveLength(1);
+  });
+
+  it('returns 404 to non-members', async () => {
+    const conversation = await startConversation(alice, bob);
+    const res = await mallory.delete(`/api/conversations/${conversation.id}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('never exposes who cleared a chat', async () => {
+    const conversation = await startConversation(alice, bob);
+    await alice.delete(`/api/conversations/${conversation.id}`);
+    const res = await bob.get(`/api/conversations/${conversation.id}`);
+    expect(res.body.conversation).not.toHaveProperty('clearedBy');
+  });
+});
+
+describe('DELETE /api/conversations/:id/messages/:messageId', () => {
+  it('lets the sender delete a message for everyone and updates quotes and the preview', async () => {
+    const conversation = await startConversation(alice, bob);
+    const { message: original } = await sendMessage({
+      conversationId: conversation.id,
+      senderId: alice.user.id,
+      content: 'Oops, wrong chat',
+    });
+    const { message: reply } = await sendMessage({
+      conversationId: conversation.id,
+      senderId: bob.user.id,
+      content: 'What?',
+      replyToId: original.id,
+    });
+    expect(reply.replyTo).toEqual({
+      id: original.id,
+      senderId: alice.user.id,
+      content: 'Oops, wrong chat',
+      deleted: false,
+    });
+
+    const res = await alice.delete(`/api/conversations/${conversation.id}/messages/${original.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatchObject({ id: original.id, deleted: true, content: '' });
+
+    const history = await bob.get(`/api/conversations/${conversation.id}/messages`);
+    expect(JSON.stringify(history.body)).not.toContain('wrong chat');
+    expect(history.body.messages[0]).toMatchObject({ deleted: true, content: '' });
+    expect(history.body.messages[1].replyTo).toMatchObject({ deleted: true, content: '' });
+  });
+
+  it('marks the conversation preview as deleted when the newest message is deleted', async () => {
+    const conversation = await startConversation(alice, bob);
+    const { message } = await sendMessage({
+      conversationId: conversation.id,
+      senderId: alice.user.id,
+      content: 'Secret preview',
+    });
+
+    await alice.delete(`/api/conversations/${conversation.id}/messages/${message.id}`);
+
+    const list = await bob.get('/api/conversations');
+    expect(list.body.conversations[0].lastMessage).toMatchObject({ deleted: true, content: '' });
+    expect(JSON.stringify(list.body)).not.toContain('Secret preview');
+  });
+
+  it("refuses to delete someone else's message or a message from another conversation", async () => {
+    const conversation = await startConversation(alice, bob);
+    const { message } = await sendMessage({
+      conversationId: conversation.id,
+      senderId: bob.user.id,
+      content: "Bob's words",
+    });
+
+    const notMine = await alice.delete(
+      `/api/conversations/${conversation.id}/messages/${message.id}`,
+    );
+    expect(notMine.status).toBe(403);
+    expect(notMine.body.error.code).toBe('NOT_MESSAGE_SENDER');
+
+    const outsider = await mallory.delete(
+      `/api/conversations/${conversation.id}/messages/${message.id}`,
+    );
+    expect(outsider.status).toBe(404);
+
+    const withMallory = await startConversation(alice, mallory);
+    const wrongConversation = await bob.delete(
+      `/api/conversations/${withMallory.id}/messages/${message.id}`,
+    );
+    expect(wrongConversation.status).toBe(404);
+
+    const history = await bob.get(`/api/conversations/${conversation.id}/messages`);
+    expect(history.body.messages[0]).toMatchObject({ content: "Bob's words", deleted: false });
+  });
+});
+
+describe('replies', () => {
+  it('rejects replies to deleted messages or messages in another conversation', async () => {
+    const withBob = await startConversation(alice, bob);
+    const withMallory = await startConversation(alice, mallory);
+    const { message: elsewhere } = await sendMessage({
+      conversationId: withMallory.id,
+      senderId: mallory.user.id,
+      content: 'Private to Alice',
+    });
+
+    await expect(
+      sendMessage({
+        conversationId: withBob.id,
+        senderId: bob.user.id,
+        content: 'Quoting',
+        replyToId: elsewhere.id,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400, code: 'INVALID_REPLY' });
+
+    const { message: gone } = await sendMessage({
+      conversationId: withBob.id,
+      senderId: alice.user.id,
+      content: 'Soon gone',
+    });
+    await alice.delete(`/api/conversations/${withBob.id}/messages/${gone.id}`);
+
+    await expect(
+      sendMessage({
+        conversationId: withBob.id,
+        senderId: bob.user.id,
+        content: 'Quoting',
+        replyToId: gone.id,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_REPLY' });
+  });
+});

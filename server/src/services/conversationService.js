@@ -1,17 +1,23 @@
-import { buildDirectKey, Conversation } from '../models/Conversation.js';
+import { buildDirectKey, Conversation, getClearedAt } from '../models/Conversation.js';
 import { User } from '../models/User.js';
 import { AppError } from '../utils/AppError.js';
 import { toConversationDto } from '../utils/serializers.js';
 
 const PARTICIPANT_FIELDS = 'name username email';
 
+/** Lists the user's conversations, leaving out chats they deleted that have no newer messages. */
 export async function listConversations(userId) {
   const conversations = await Conversation.find({ participants: userId })
     .sort({ lastMessageAt: -1 })
     .populate('participants', PARTICIPANT_FIELDS)
     .lean();
 
-  return conversations.map(toConversationDto);
+  return conversations
+    .filter((conversation) => {
+      const clearedAt = getClearedAt(conversation, userId);
+      return !clearedAt || conversation.lastMessageAt > clearedAt;
+    })
+    .map((conversation) => toConversationDto(conversation, userId));
 }
 
 /**
@@ -70,7 +76,27 @@ export async function findOrCreateDirectConversation(currentUserId, participantI
   }
 
   await conversation.populate('participants', PARTICIPANT_FIELDS);
-  return { conversation: toConversationDto(conversation), created };
+  return { conversation: toConversationDto(conversation, currentUserId), created };
+}
+
+/**
+ * "Delete chat" for one participant: hides the conversation and its history from them only.
+ * The other participant keeps everything, and new messages bring the chat back.
+ */
+export async function clearConversationForUser(conversationId, userId) {
+  await assertConversationMember(conversationId, userId);
+  const at = new Date();
+
+  const updated = await Conversation.updateOne(
+    { _id: conversationId, 'clearedBy.user': userId },
+    { $set: { 'clearedBy.$.at': at } },
+  );
+  if (updated.matchedCount === 0) {
+    await Conversation.updateOne(
+      { _id: conversationId, 'clearedBy.user': { $ne: userId } },
+      { $push: { clearedBy: { user: userId, at } } },
+    );
+  }
 }
 
 export async function listConversationIdsForUser(userId) {

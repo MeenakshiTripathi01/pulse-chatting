@@ -15,7 +15,9 @@ export default function ChatPage() {
   const match = useMatch('/c/:conversationId');
   const conversationId = match?.params.conversationId ?? null;
 
-  const chat = useChat(conversationId);
+  const chat = useChat(conversationId, {
+    onActiveConversationRemoved: () => navigate('/', { replace: true }),
+  });
   const { presence, typingIn, startTyping, stopTyping } = usePresence(
     chat.conversations.items.map((conversation) => getOtherParticipant(conversation, user.id).id),
   );
@@ -29,7 +31,7 @@ export default function ChatPage() {
   const showChatOnMobile = Boolean(conversationId);
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="relative flex h-dvh flex-col overflow-hidden">
       <ConnectionBanner connection={connection} />
       <div className="flex min-h-0 flex-1">
         <Sidebar
@@ -51,10 +53,12 @@ export default function ChatPage() {
           connection={connection}
           presence={presence}
           typingIn={typingIn}
-          onSend={(content) => chat.sendMessage(conversationId, content)}
+          onSend={(content, replyTo) => chat.sendMessage(conversationId, content, replyTo)}
           onTyping={() => startTyping(conversationId)}
           onStopTyping={stopTyping}
           onRetryMessage={chat.retryMessage}
+          onDeleteMessage={(messageId) => chat.deleteMessage(conversationId, messageId)}
+          onDeleteConversation={() => chat.deleteConversation(conversationId)}
           onLoadOlder={() => chat.loadOlderMessages(conversationId)}
           onReloadThread={() => chat.reloadThread(conversationId)}
           className={`${showChatOnMobile ? 'flex' : 'hidden'} min-w-0 flex-1 md:flex`}

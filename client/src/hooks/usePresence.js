@@ -32,14 +32,14 @@ export function usePresence(partnerIds) {
     socket.emit('presence:get', { userIds: partnerKey.split(',') });
   }, [socket, readyCount, partnerKey]);
 
-  const setTyping = useCallback((conversationId, isTyping) => {
+  const setTyping = useCallback(function updateTyping(conversationId, isTyping) {
     const timers = expiryTimers.current;
     clearTimeout(timers.get(conversationId));
     timers.delete(conversationId);
     if (isTyping) {
       timers.set(
         conversationId,
-        setTimeout(() => setTyping(conversationId, false), TYPING_EXPIRY_MS),
+        setTimeout(() => updateTyping(conversationId, false), TYPING_EXPIRY_MS),
       );
     }
     setTypingIn((current) => {

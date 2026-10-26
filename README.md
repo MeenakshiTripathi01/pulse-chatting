@@ -1,8 +1,8 @@
 # Pulse Chat
 
 A real-time, one-to-one chat application built with **React, Express, MongoDB and Socket.IO**.
-Users register, find each other in a searchable directory, start private conversations and
-exchange messages that are delivered live and stored permanently.
+Users register, find each other by username, start private conversations and exchange
+messages that are delivered live and stored permanently.
 
 ## Features
 
@@ -13,7 +13,8 @@ exchange messages that are delivered live and stored permanently.
   requests and rate limits on login and registration.
 - **Usernames**: every new account picks a unique `@username` (3–20 letters, numbers, dots or
   underscores) that others can search for.
-- **User directory**: searchable list of other users (name, username or email).
+- **People search**: nobody is listed until you type; results are users whose username starts
+  with what you typed (a leading `@` is optional). Names and emails aren't searchable.
 - **Private conversations**: one conversation per pair of users, enforced by a unique index.
 - **Real-time messaging**: Socket.IO with server-side room authorization. A message is shown
   as sent only after MongoDB has saved it (acknowledgements).
@@ -23,6 +24,11 @@ exchange messages that are delivered live and stored permanently.
 - **Live sidebar**: latest-message previews and ordering update as messages arrive; new
   conversations started by others appear automatically.
 - **Emojis**: an emoji picker in the message box inserts emojis at the cursor.
+- **Replies**: reply to a specific message; the reply shows a quote of the original.
+- **Deleting**: delete your own messages for everyone (they become "This message was deleted",
+  and quotes of them lose their text), or delete a whole chat from your list. Deleting a chat
+  only affects you: the other person keeps it, and a new message brings it back with only the
+  new history.
 - **Online status and typing indicators**: chat partners see a green dot and "Online", or "last
   seen …" once you leave, and "typing…" while you write. Only people who share a conversation
   with you receive your status.
@@ -163,18 +169,20 @@ can't make it go backwards.
   to the new room and emits `conversation:new`.
 - **Events**
 
-  | Direction       | Event               | Payload                                                              |
-  | --------------- | ------------------- | -------------------------------------------------------------------- |
-  | client → server | `message:send`      | `{ conversationId, content, clientMessageId }` + ack callback        |
-  | server → client | ack                 | `{ ok: true, message }` or `{ ok: false, error: { code, message } }` |
-  | server → room   | `message:new`       | `{ message }`                                                        |
-  | server → user   | `conversation:new`  | `{ conversation }`                                                   |
-  | server → socket | `session:ready`     | `{ user }`: rooms joined, safe to resync                             |
-  | client → server | `presence:get`      | `{ userIds }`; answered only for people sharing a conversation       |
-  | server → socket | `presence:snapshot` | `{ presence: { [userId]: { online, lastSeenAt } } }`                 |
-  | server → room   | `presence:update`   | `{ userId, online, lastSeenAt }` when first tab opens / last closes  |
-  | client → server | `typing`            | `{ conversationId, isTyping }`; ignored unless you're a member       |
-  | server → room   | `typing`            | `{ conversationId, userId, isTyping }` to the other members          |
+  | Direction       | Event                  | Payload                                                                   |
+  | --------------- | ---------------------- | ------------------------------------------------------------------------- |
+  | client → server | `message:send`         | `{ conversationId, content, clientMessageId, replyToId? }` + ack callback |
+  | server → client | ack                    | `{ ok: true, message }` or `{ ok: false, error: { code, message } }`      |
+  | server → room   | `message:new`          | `{ message }`                                                             |
+  | server → room   | `message:deleted`      | `{ message }` with `deleted: true` and empty `content`                    |
+  | server → user   | `conversation:new`     | `{ conversation }`                                                        |
+  | server → user   | `conversation:deleted` | `{ conversationId }`: you deleted the chat (syncs your other tabs)        |
+  | server → socket | `session:ready`        | `{ user }`: rooms joined, safe to resync                                  |
+  | client → server | `presence:get`         | `{ userIds }`; answered only for people sharing a conversation            |
+  | server → socket | `presence:snapshot`    | `{ presence: { [userId]: { online, lastSeenAt } } }`                      |
+  | server → room   | `presence:update`      | `{ userId, online, lastSeenAt }` when first tab opens / last closes       |
+  | client → server | `typing`               | `{ conversationId, isTyping }`; ignored unless you're a member            |
+  | server → room   | `typing`               | `{ conversationId, userId, isTyping }` to the other members               |
 
 - **Presence and typing:** the server counts each user's open sockets, so a user stays online
   while any tab is open. Typing senders repeat `isTyping: true` every 2.5 seconds while typing
@@ -346,11 +354,13 @@ clients must send credentials (`withCredentials: true`).
 | POST   | `/api/auth/login`                                | –        | Body `{ email, password, username? }` → `200 { user, created: false }`, or `201 { user, created: true }` for a new email (`username` required then, else `400 USERNAME_REQUIRED`). `401 WRONG_PASSWORD`, `409 USERNAME_TAKEN` |
 | POST   | `/api/auth/logout`                               | –        | Clears the session cookie → `204`                                                                                                                                                                                             |
 | GET    | `/api/auth/me`                                   | ✔        | `{ user }` for the current session. `401` if missing/expired                                                                                                                                                                  |
-| GET    | `/api/users?search=&limit=`                      | ✔        | Other users matching name/username/email; a leading `@` is ignored (`limit` 1–50, default 20) → `{ users }`                                                                                                                   |
-| GET    | `/api/conversations`                             | ✔        | My conversations, newest activity first → `{ conversations }`                                                                                                                                                                 |
+| GET    | `/api/users?search=&limit=`                      | ✔        | Other users whose username starts with `search` (case-insensitive, leading `@` ignored); empty search → `[]` (`limit` 1–50, default 20) → `{ users }`                                                                         |
+| GET    | `/api/conversations`                             | ✔        | My conversations, newest activity first, excluding chats I deleted that have no newer messages → `{ conversations }`                                                                                                          |
 | POST   | `/api/conversations`                             | ✔        | Body `{ participantId }` → `201` (created) or `200` (existing) `{ conversation }`                                                                                                                                             |
 | GET    | `/api/conversations/:id`                         | ✔ member | One conversation → `{ conversation }`; `404` if not a member                                                                                                                                                                  |
-| GET    | `/api/conversations/:id/messages?before=&limit=` | ✔ member | `{ messages, hasMore, nextCursor }`, oldest→newest; pass `nextCursor` as `before` for older pages (`limit` 1–100, default 30)                                                                                                 |
+| DELETE | `/api/conversations/:id`                         | ✔ member | Deletes the chat from my list only (the other person keeps it) → `204`; emits `conversation:deleted` to my tabs                                                                                                               |
+| GET    | `/api/conversations/:id/messages?before=&limit=` | ✔ member | `{ messages, hasMore, nextCursor }`, oldest→newest; pass `nextCursor` as `before` for older pages (`limit` 1–100, default 30). Messages from before I deleted the chat are left out                                           |
+| DELETE | `/api/conversations/:id/messages/:messageId`     | ✔ member | Deletes my own message for everyone → `{ message }` (`deleted: true`); emits `message:deleted`. `403 NOT_MESSAGE_SENDER` for others' messages                                                                                 |
 
 Example objects:
 
@@ -410,13 +420,13 @@ Free Render instances sleep when idle; the first request after a pause takes a w
   refresh tokens would address this.
 - A socket that is already connected stays connected after logout in _another_ tab until that
   tab makes a request; sending also stops once the token expires.
-- User search uses a case-insensitive regex, which can't use an index efficiently. Fine for
-  thousands of users; a text or Atlas Search index would be needed beyond that.
+- User search is a username prefix match. Usernames are stored lowercase, so it uses the
+  username index; a one-letter search still lists up to 20 people whose usernames start with it.
 - One-to-one conversations only (the schema has a `type` field to add groups later).
 - Online status is tracked in server memory, so it resets if the server restarts (users reconnect
   automatically and reappear online).
-- Messages can't be edited or deleted. There are no attachments, read receipts, or
-  notifications.
+- Messages can't be edited. Only the sender can delete a message, with no time limit. There are
+  no attachments, read receipts, or notifications.
 - Saving a message and updating the conversation preview are two writes, not a transaction.
   If the second fails, the message is kept and the preview catches up with the next message.
-- Each user's email is visible to other signed-in users in the directory.
+- A user's email is visible to anyone who finds them by username.

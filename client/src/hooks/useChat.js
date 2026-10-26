@@ -8,7 +8,11 @@ import { chatReducer, initialChatState } from '../state/chatReducer.js';
 
 const SEND_TIMEOUT_MS = 10_000;
 
-export function useChat(activeConversationId) {
+/**
+ * `onActiveConversationRemoved` is called when the open conversation is deleted, here or in
+ * another tab, so the page can navigate away from it.
+ */
+export function useChat(activeConversationId, { onActiveConversationRemoved } = {}) {
   const { user } = useAuth();
   const { socket, readyCount } = useSocket();
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
@@ -17,10 +21,22 @@ export function useChat(activeConversationId) {
   // need to be re-created (and re-subscribed) on every state change.
   const stateRef = useRef(state);
   const activeIdRef = useRef(activeConversationId);
+  const onActiveRemovedRef = useRef(onActiveConversationRemoved);
   useEffect(() => {
     stateRef.current = state;
     activeIdRef.current = activeConversationId;
+    onActiveRemovedRef.current = onActiveConversationRemoved;
   });
+
+  // Deleted chats that must not be fetched back just because they're still in the URL for a
+  // moment. A chat leaves this set when it is started again or receives a new message.
+  const removedIdsRef = useRef(new Set());
+
+  const removeConversation = useCallback((conversationId) => {
+    removedIdsRef.current.add(conversationId);
+    if (conversationId === activeIdRef.current) onActiveRemovedRef.current?.();
+    dispatch({ type: 'conversation/removed', conversationId });
+  }, []);
 
   const loadConversations = useCallback(async ({ silent = false } = {}) => {
     if (!silent) dispatch({ type: 'conversations/loading' });
@@ -69,6 +85,7 @@ export function useChat(activeConversationId) {
   const activeIsKnown = state.conversations.items.some((c) => c.id === activeConversationId);
   useEffect(() => {
     if (!activeConversationId || conversationsStatus !== 'success' || activeIsKnown) return;
+    if (removedIdsRef.current.has(activeConversationId)) return;
     conversationsApi
       .getConversation(activeConversationId)
       .then((conversation) => dispatch({ type: 'conversation/upserted', conversation }))
@@ -91,6 +108,7 @@ export function useChat(activeConversationId) {
         (c) => c.id === message.conversationId,
       );
       if (!known) {
+        removedIdsRef.current.delete(message.conversationId);
         try {
           const conversation = await conversationsApi.getConversation(message.conversationId);
           dispatch({ type: 'conversation/upserted', conversation });
@@ -103,14 +121,24 @@ export function useChat(activeConversationId) {
     const handleNewConversation = ({ conversation }) => {
       dispatch({ type: 'conversation/upserted', conversation });
     };
+    const handleMessageDeleted = ({ message }) => {
+      dispatch({ type: 'message/deleted', message });
+    };
+    const handleConversationDeleted = ({ conversationId }) => {
+      removeConversation(conversationId);
+    };
 
     socket.on('message:new', handleNewMessage);
     socket.on('conversation:new', handleNewConversation);
+    socket.on('message:deleted', handleMessageDeleted);
+    socket.on('conversation:deleted', handleConversationDeleted);
     return () => {
       socket.off('message:new', handleNewMessage);
       socket.off('conversation:new', handleNewConversation);
+      socket.off('message:deleted', handleMessageDeleted);
+      socket.off('conversation:deleted', handleConversationDeleted);
     };
-  }, [socket]);
+  }, [socket, removeConversation]);
 
   // After every (re)connection, catch up on anything missed while disconnected.
   useEffect(() => {
@@ -124,7 +152,7 @@ export function useChat(activeConversationId) {
   }, [readyCount, loadConversations, loadThread]);
 
   const deliver = useCallback(
-    async (conversationId, clientMessageId, content) => {
+    async (conversationId, clientMessageId, content, replyToId) => {
       const fail = (error) =>
         dispatch({ type: 'message/failed', conversationId, clientMessageId, error });
 
@@ -134,9 +162,12 @@ export function useChat(activeConversationId) {
       }
 
       try {
-        const response = await socket
-          .timeout(SEND_TIMEOUT_MS)
-          .emitWithAck('message:send', { conversationId, content, clientMessageId });
+        const response = await socket.timeout(SEND_TIMEOUT_MS).emitWithAck('message:send', {
+          conversationId,
+          content,
+          clientMessageId,
+          ...(replyToId ? { replyToId } : {}),
+        });
 
         if (response?.ok) dispatch({ type: 'message/confirmed', message: response.message });
         else fail(response?.error?.message ?? 'The message could not be sent.');
@@ -149,8 +180,9 @@ export function useChat(activeConversationId) {
     [socket],
   );
 
+  /** `replyTo` is the message being replied to, if any. */
   const sendMessage = useCallback(
-    (conversationId, content) => {
+    (conversationId, content, replyTo = null) => {
       const clientMessageId = createClientMessageId();
       dispatch({
         type: 'message/pending',
@@ -160,12 +192,21 @@ export function useChat(activeConversationId) {
           conversationId,
           senderId: user.id,
           content,
+          deleted: false,
+          replyTo: replyTo
+            ? {
+                id: replyTo.id,
+                senderId: replyTo.senderId,
+                content: replyTo.content,
+                deleted: false,
+              }
+            : null,
           createdAt: new Date().toISOString(),
           status: 'sending',
           error: null,
         },
       });
-      return deliver(conversationId, clientMessageId, content);
+      return deliver(conversationId, clientMessageId, content, replyTo?.id);
     },
     [deliver, user.id],
   );
@@ -177,9 +218,29 @@ export function useChat(activeConversationId) {
         conversationId: message.conversationId,
         clientMessageId: message.clientMessageId,
       });
-      return deliver(message.conversationId, message.clientMessageId, message.content);
+      return deliver(
+        message.conversationId,
+        message.clientMessageId,
+        message.content,
+        message.replyTo?.id,
+      );
     },
     [deliver],
+  );
+
+  /** Deletes one of our messages for everyone. Throws if the server refuses. */
+  const deleteMessage = useCallback(async (conversationId, messageId) => {
+    const message = await conversationsApi.deleteMessage(conversationId, messageId);
+    dispatch({ type: 'message/deleted', message });
+  }, []);
+
+  /** Removes the chat from our list (the other person keeps it). Throws on failure. */
+  const deleteConversation = useCallback(
+    async (conversationId) => {
+      await conversationsApi.deleteConversation(conversationId);
+      removeConversation(conversationId);
+    },
+    [removeConversation],
   );
 
   const loadOlderMessages = useCallback(async (conversationId) => {
@@ -199,6 +260,7 @@ export function useChat(activeConversationId) {
 
   const startConversation = useCallback(async (participantId) => {
     const conversation = await conversationsApi.createConversation(participantId);
+    removedIdsRef.current.delete(conversation.id);
     dispatch({ type: 'conversation/upserted', conversation });
     return conversation;
   }, []);
@@ -212,6 +274,8 @@ export function useChat(activeConversationId) {
     reloadThread: loadThread,
     sendMessage,
     retryMessage,
+    deleteMessage,
+    deleteConversation,
     loadOlderMessages,
     startConversation,
   };

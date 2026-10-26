@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import {
   createConversation,
+  deleteConversation,
+  deleteConversationMessage,
   getConversation,
   getConversations,
   getMessages,
@@ -11,6 +13,7 @@ import {
   conversationParamsSchema,
   createConversationSchema,
   messageHistoryQuerySchema,
+  messageParamsSchema,
 } from '../validation/schemas.js';
 
 export const conversationRouter = Router();
@@ -23,8 +26,18 @@ conversationRouter.get(
   validate({ params: conversationParamsSchema }),
   getConversation,
 );
+conversationRouter.delete(
+  '/:conversationId',
+  validate({ params: conversationParamsSchema }),
+  deleteConversation,
+);
 conversationRouter.get(
   '/:conversationId/messages',
   validate({ params: conversationParamsSchema, query: messageHistoryQuerySchema }),
   getMessages,
+);
+conversationRouter.delete(
+  '/:conversationId/messages/:messageId',
+  validate({ params: messageParamsSchema }),
+  deleteConversationMessage,
 );

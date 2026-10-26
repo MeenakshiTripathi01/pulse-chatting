@@ -106,8 +106,11 @@ export function ConversationList({
         const isActive = conversation.id === activeConversationId;
         const { lastMessage } = conversation;
         const preview = lastMessage
-          ? `${lastMessage.senderId === currentUserId ? 'You: ' : ''}${lastMessage.content}`
+          ? `${lastMessage.senderId === currentUserId ? 'You: ' : ''}${
+              lastMessage.deleted ? 'This message was deleted' : lastMessage.content
+            }`
           : 'No messages yet';
+        const previewIsMuted = !lastMessage || lastMessage.deleted;
         const isOnline = Boolean(presence[other.id]?.online);
         const isTyping = Boolean(typingIn[conversation.id]);
 
@@ -143,7 +146,7 @@ export function ConversationList({
                   </span>
                 ) : (
                   <span
-                    className={`block truncate text-sm ${lastMessage ? 'text-slate-600' : 'italic text-slate-500'}`}
+                    className={`block truncate text-sm ${previewIsMuted ? 'italic text-slate-500' : 'text-slate-600'}`}
                   >
                     {preview}
                   </span>

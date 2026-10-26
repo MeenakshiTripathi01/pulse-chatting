@@ -76,6 +76,7 @@ function applyPreview(state, message) {
         id: message.id,
         senderId: message.senderId,
         content: message.content,
+        deleted: Boolean(message.deleted),
         createdAt: message.createdAt,
       },
       lastMessageAt: message.createdAt,
@@ -95,6 +96,32 @@ function addServerMessage(state, message) {
     }));
   }
   return next;
+}
+
+/** Replaces a message with its deleted version and blanks out any quotes of it. */
+function applyDeletion(state, deleted) {
+  const { id, conversationId } = deleted;
+  const items = state.conversations.items.map((conversation) =>
+    conversation.id === conversationId && conversation.lastMessage?.id === id
+      ? {
+          ...conversation,
+          lastMessage: { ...conversation.lastMessage, content: '', deleted: true },
+        }
+      : conversation,
+  );
+  const next = { ...state, conversations: { ...state.conversations, items } };
+  if (!next.threads[conversationId]) return next;
+
+  return updateThread(next, conversationId, (thread) => ({
+    ...thread,
+    messages: thread.messages.map((message) => {
+      if (message.id === id) return { ...message, ...deleted, status: 'sent', error: null };
+      if (message.replyTo?.id === id) {
+        return { ...message, replyTo: { ...message.replyTo, content: '', deleted: true } };
+      }
+      return message;
+    }),
+  }));
 }
 
 function setMessageStatus(state, conversationId, clientMessageId, changes) {
@@ -234,6 +261,21 @@ export function chatReducer(state, action) {
     case 'message/confirmed':
     case 'message/received':
       return addServerMessage(state, action.message);
+
+    case 'message/deleted':
+      return applyDeletion(state, action.message);
+
+    case 'conversation/removed': {
+      const { [action.conversationId]: _removed, ...threads } = state.threads;
+      return {
+        ...state,
+        conversations: {
+          ...state.conversations,
+          items: state.conversations.items.filter((c) => c.id !== action.conversationId),
+        },
+        threads,
+      };
+    }
 
     default:
       throw new Error(`Unknown chat action: ${action.type}`);

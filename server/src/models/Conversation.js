@@ -8,8 +8,20 @@ const lastMessageSchema = new mongoose.Schema(
   {
     messageId: { type: ObjectId, ref: 'Message', required: true },
     sender: { type: ObjectId, ref: 'User', required: true },
-    content: { type: String, required: true },
+    // Empty once the message is deleted for everyone.
+    content: { type: String, default: '' },
+    deleted: { type: Boolean, default: false },
     createdAt: { type: Date, required: true },
+  },
+  { _id: false },
+);
+
+// When a participant deletes the chat from their list. Messages up to `at` stay hidden from
+// them; a newer message brings the conversation back with only the new history.
+const clearedSchema = new mongoose.Schema(
+  {
+    user: { type: ObjectId, ref: 'User', required: true },
+    at: { type: Date, required: true },
   },
   { _id: false },
 );
@@ -39,6 +51,7 @@ const conversationSchema = new mongoose.Schema(
     lastMessage: { type: lastMessageSchema, default: null },
     // Used for sorting the sidebar; starts at creation time and moves with each new message.
     lastMessageAt: { type: Date, default: Date.now },
+    clearedBy: { type: [clearedSchema], default: [] },
   },
   { timestamps: true },
 );
@@ -53,6 +66,12 @@ conversationSchema.index({ participants: 1, lastMessageAt: -1 });
 
 export function buildDirectKey(userIdA, userIdB) {
   return [String(userIdA), String(userIdB)].sort().join(':');
+}
+
+/** When the user last deleted this chat from their list, or null if they never did. */
+export function getClearedAt(conversation, userId) {
+  const entry = conversation.clearedBy?.find((cleared) => String(cleared.user) === String(userId));
+  return entry?.at ?? null;
 }
 
 export const Conversation = mongoose.model('Conversation', conversationSchema);

@@ -6,7 +6,16 @@ import { MessageBubble } from './MessageBubble.jsx';
 
 const NEAR_BOTTOM_PX = 120;
 
-export function MessageList({ conversationId, thread, currentUserId, onLoadOlder, onRetry }) {
+export function MessageList({
+  conversationId,
+  thread,
+  currentUserId,
+  otherName,
+  onLoadOlder,
+  onRetry,
+  onReply,
+  onDelete,
+}) {
   const containerRef = useRef(null);
   const isNearBottomRef = useRef(true);
   const distanceFromBottomRef = useRef(null);
@@ -57,7 +66,7 @@ export function MessageList({ conversationId, thread, currentUserId, onLoadOlder
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6"
+      className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6"
     >
       {thread.hasMore && (
         <div className="mb-4 flex justify-center">
@@ -100,7 +109,11 @@ export function MessageList({ conversationId, thread, currentUserId, onLoadOlder
               <MessageBubble
                 message={message}
                 isOwn={message.senderId === currentUserId}
+                currentUserId={currentUserId}
+                otherName={otherName}
                 onRetry={onRetry}
+                onReply={onReply}
+                onDelete={onDelete}
               />
             </Fragment>
           );

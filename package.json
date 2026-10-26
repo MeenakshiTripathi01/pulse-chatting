@@ -14,6 +14,7 @@
     "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
     "start": "npm run start -w server",
     "db:memory": "npm run db:memory -w server",
+    "seed": "npm run seed -w server",
     "build": "npm run build -w client",
     "test": "npm run test -w server && npm run test -w client",
     "lint": "npm run lint -w server && npm run lint -w client",

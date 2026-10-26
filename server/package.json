@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "lint": "oxlint src tests scripts",
     "db:memory": "node scripts/memory-db.js",
-    "smoke": "node scripts/smoke-test.js"
+    "smoke": "node scripts/smoke-test.js",
+    "seed": "node --env-file-if-exists=.env scripts/seed.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

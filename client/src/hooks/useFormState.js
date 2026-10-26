@@ -7,8 +7,9 @@ import { validateForm } from '../lib/validation.js';
  * server error mapping, and the submitting flag.
  *
  * `fieldForErrorCode` maps API error codes to a field, e.g. { EMAIL_TAKEN: 'email' }.
+ * `onError` may return true to mark a failed submit as handled, so no error is shown.
  */
-export function useFormState({ initialValues, schema, onSubmit, fieldForErrorCode = {} }) {
+export function useFormState({ initialValues, schema, onSubmit, onError, fieldForErrorCode = {} }) {
   const [values, setValues] = useState(initialValues);
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
@@ -35,6 +36,10 @@ export function useFormState({ initialValues, schema, onSubmit, fieldForErrorCod
     try {
       await onSubmit(data);
     } catch (error) {
+      if (onError?.(error)) {
+        setSubmitting(false);
+        return;
+      }
       const field = fieldForErrorCode[getErrorCode(error)];
       const serverFieldErrors = getFieldErrors(error);
 

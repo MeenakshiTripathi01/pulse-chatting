@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getErrorMessage } from '../../api/client.js';
 import { useUserSearch } from '../../hooks/useUserSearch.js';
+import { formatUserHandle } from '../../lib/format.js';
 import { Alert } from '../ui/Alert.jsx';
 import { Avatar } from '../ui/Avatar.jsx';
 import { Button } from '../ui/Button.jsx';
@@ -54,7 +55,7 @@ export function PeopleList({ search, onStartConversation }) {
         title={search.trim() ? 'No people found' : 'No other users yet'}
         description={
           search.trim()
-            ? `No one matches "${search.trim()}". Try a different name or email.`
+            ? `No one matches "${search.trim()}". Try a different name, username or email.`
             : 'Invite a friend to register, then start chatting.'
         }
       />
@@ -81,7 +82,9 @@ export function PeopleList({ search, onStartConversation }) {
               <Avatar name={user.name} seed={user.id} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium text-slate-900">{user.name}</span>
-                <span className="block truncate text-sm text-slate-600">{user.email}</span>
+                <span className="block truncate text-sm text-slate-600">
+                  {formatUserHandle(user)}
+                </span>
               </span>
               {startingUserId === user.id ? (
                 <Spinner

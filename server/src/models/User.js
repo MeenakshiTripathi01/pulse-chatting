@@ -13,6 +13,8 @@ const userSchema = new mongoose.Schema(
       maxlength: 254,
       unique: true,
     },
+    // Optional so accounts created before usernames existed stay valid.
+    username: { type: String, trim: true, lowercase: true, minlength: 3, maxlength: 20 },
     // `select: false` means queries never return the hash unless explicitly requested.
     passwordHash: { type: String, required: true, select: false },
   },
@@ -21,5 +23,10 @@ const userSchema = new mongoose.Schema(
 
 // Supports the alphabetical user directory listing.
 userSchema.index({ name: 1 });
+// Unique only among users that have one; older accounts without a username don't collide.
+userSchema.index(
+  { username: 1 },
+  { unique: true, partialFilterExpression: { username: { $type: 'string' } } },
+);
 
 export const User = mongoose.model('User', userSchema);

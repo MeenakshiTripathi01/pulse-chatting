@@ -1,4 +1,4 @@
-import { authenticateUser, registerUser, signAccessToken } from '../services/authService.js';
+import { registerUser, signAccessToken, signInOrCreateUser } from '../services/authService.js';
 import { clearAuthCookie, setAuthCookie } from '../utils/cookies.js';
 import { toPublicUser } from '../utils/serializers.js';
 
@@ -9,9 +9,9 @@ export async function register(req, res) {
 }
 
 export async function login(req, res) {
-  const user = await authenticateUser(req.valid.body);
+  const { user, created } = await signInOrCreateUser(req.valid.body);
   setAuthCookie(res, signAccessToken(user._id));
-  res.json({ user: toPublicUser(user) });
+  res.status(created ? 201 : 200).json({ user: toPublicUser(user), created });
 }
 
 export function logout(_req, res) {

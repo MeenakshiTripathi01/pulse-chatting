@@ -14,15 +14,18 @@ import { sendMessage } from '../src/services/messageService.js';
 
 export const DEMO_PASSWORD = 'Password123';
 export const DEMO_USERS = [
-  { name: 'Alice Demo', email: 'alice@demo.com' },
-  { name: 'Bob Demo', email: 'bob@demo.com' },
+  { name: 'Alice Demo', username: 'alice', email: 'alice@demo.com' },
+  { name: 'Bob Demo', username: 'bob', email: 'bob@demo.com' },
 ];
 
-async function findOrRegister({ name, email }) {
+async function findOrRegister({ name, username, email }) {
   // Existing accounts are left untouched (their passwords are never reset).
   const existing = await User.findOne({ email });
   if (existing) return { user: existing, created: false };
-  return { user: await registerUser({ name, email, password: DEMO_PASSWORD }), created: true };
+  return {
+    user: await registerUser({ name, username, email, password: DEMO_PASSWORD }),
+    created: true,
+  };
 }
 
 /** Idempotent: running it again does not create duplicate users, chats or messages. */

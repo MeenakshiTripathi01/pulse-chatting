@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatUserHandle } from '../../lib/format.js';
 import { Avatar } from '../ui/Avatar.jsx';
 import { Logo } from '../ui/Logo.jsx';
 import { ConversationList } from './ConversationList.jsx';
@@ -61,7 +62,7 @@ export function Sidebar({
         <Avatar name={user.name} seed={user.id} size="sm" />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
-          <p className="truncate text-xs text-slate-600">{user.email}</p>
+          <p className="truncate text-xs text-slate-600">{formatUserHandle(user)}</p>
         </div>
       </div>
 
@@ -114,7 +115,7 @@ export function Sidebar({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={
-              tab === 'chats' ? 'Search conversations' : 'Search people by name or email'
+              tab === 'chats' ? 'Search conversations' : 'Search by name, @username or email'
             }
             className="block w-full rounded-lg border border-slate-300 bg-white py-2 pr-3 pl-9 text-sm placeholder:text-slate-500 focus:border-brand-500 focus:outline-2 focus:outline-brand-500"
           />

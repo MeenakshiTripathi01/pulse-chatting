@@ -60,7 +60,7 @@ export function ConversationList({
     );
   }
 
-  const query = search.trim().toLowerCase();
+  const query = search.trim().toLowerCase().replace(/^@/, '');
   const items = conversations.items
     .map((conversation) => ({
       conversation,
@@ -70,6 +70,7 @@ export function ConversationList({
       ({ other }) =>
         !query ||
         other.name.toLowerCase().includes(query) ||
+        other.username?.includes(query) ||
         other.email.toLowerCase().includes(query),
     );
 

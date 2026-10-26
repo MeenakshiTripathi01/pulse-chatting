@@ -5,14 +5,14 @@ function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Lists other registered users, optionally filtered by a name/email substring. */
+/** Lists other registered users, optionally filtered by a name/username/email substring. */
 export async function searchUsers({ currentUserId, search, limit }) {
   const filter = { _id: { $ne: currentUserId } };
 
   if (search) {
     // Escaping turns user input like "a.*" into a literal match instead of a regex pattern.
-    const pattern = new RegExp(escapeRegex(search), 'i');
-    filter.$or = [{ name: pattern }, { email: pattern }];
+    const pattern = new RegExp(escapeRegex(search.replace(/^@/, '')), 'i');
+    filter.$or = [{ name: pattern }, { username: pattern }, { email: pattern }];
   }
 
   const users = await User.find(filter).sort({ name: 1, _id: 1 }).limit(limit).lean();

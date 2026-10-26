@@ -59,6 +59,11 @@ export function getInitials(name = '') {
   return (first + last).toUpperCase();
 }
 
+/** "@meenakshi" for accounts with a username, otherwise their email. */
+export function formatUserHandle(user) {
+  return user.username ? `@${user.username}` : user.email;
+}
+
 /** In a direct conversation, the participant who isn't the current user. */
 export function getOtherParticipant(conversation, currentUserId) {
   return (

@@ -5,6 +5,7 @@ export function toPublicUser(user) {
   return {
     id: String(user._id),
     name: user.name,
+    username: user.username ?? null,
     email: user.email,
   };
 }

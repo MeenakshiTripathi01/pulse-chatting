@@ -10,8 +10,8 @@ let alice;
 beforeAll(async () => {
   await connectTestDatabase();
   alice = await registerClient(app, { name: 'Alice Smith', email: 'alice@example.com' });
-  await registerClient(app, { name: 'Bob Jones', email: 'bob@example.com' });
-  await registerClient(app, { name: 'Carol Smith', email: 'carol@work.io' });
+  await registerClient(app, { name: 'Bob Jones', username: 'bobby_j', email: 'bob@example.com' });
+  await registerClient(app, { name: 'Carol Smith', username: 'mitthu', email: 'carol@work.io' });
 });
 afterAll(disconnectTestDatabase);
 
@@ -29,16 +29,20 @@ describe('GET /api/users', () => {
     expect(res.body.users[0]).toEqual({
       id: expect.any(String),
       name: 'Bob Jones',
+      username: 'bobby_j',
       email: 'bob@example.com',
     });
   });
 
-  it('searches by name or email, case-insensitively', async () => {
+  it('searches by name, username or email, case-insensitively', async () => {
     const byName = await alice.get('/api/users?search=SMITH');
     expect(byName.body.users.map((user) => user.name)).toEqual(['Carol Smith']);
 
     const byEmail = await alice.get('/api/users?search=work.io');
     expect(byEmail.body.users.map((user) => user.name)).toEqual(['Carol Smith']);
+
+    const byUsername = await alice.get(`/api/users?search=${encodeURIComponent('@Mitthu')}`);
+    expect(byUsername.body.users.map((user) => user.name)).toEqual(['Carol Smith']);
   });
 
   it('treats regex characters in the search literally', async () => {

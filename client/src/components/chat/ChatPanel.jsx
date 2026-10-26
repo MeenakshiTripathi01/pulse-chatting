@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { getOtherParticipant } from '../../lib/format.js';
+import { formatUserHandle, getOtherParticipant } from '../../lib/format.js';
 import { Alert } from '../ui/Alert.jsx';
 import { Avatar } from '../ui/Avatar.jsx';
 import { Button } from '../ui/Button.jsx';
@@ -138,7 +138,7 @@ export function ChatPanel({
             <Avatar name={other.name} seed={other.id} />
             <div className="min-w-0">
               <h2 className="truncate font-semibold text-slate-900">{other.name}</h2>
-              <p className="truncate text-sm text-slate-600">{other.email}</p>
+              <p className="truncate text-sm text-slate-600">{formatUserHandle(other)}</p>
             </div>
           </>
         ) : (

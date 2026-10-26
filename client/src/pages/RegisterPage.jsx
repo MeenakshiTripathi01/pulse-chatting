@@ -10,10 +10,11 @@ import { registerSchema } from '../lib/validation.js';
 export default function RegisterPage() {
   const { register } = useAuth();
   const { values, fieldErrors, formError, submitting, handleChange, handleSubmit } = useFormState({
-    initialValues: { name: '', email: '', password: '', confirmPassword: '' },
+    initialValues: { name: '', username: '', email: '', password: '', confirmPassword: '' },
     schema: registerSchema,
-    onSubmit: ({ name, email, password }) => register({ name, email, password }),
-    fieldForErrorCode: { EMAIL_TAKEN: 'email' },
+    onSubmit: ({ name, username, email, password }) =>
+      register({ name, username, email, password }),
+    fieldForErrorCode: { EMAIL_TAKEN: 'email', USERNAME_TAKEN: 'username' },
   });
 
   return (
@@ -41,6 +42,17 @@ export default function RegisterPage() {
           value={values.name}
           onChange={handleChange}
           error={fieldErrors.name}
+        />
+        <TextField
+          label="Username"
+          name="username"
+          autoComplete="nickname"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={values.username}
+          onChange={handleChange}
+          error={fieldErrors.username}
+          hint="Letters, numbers, dots and underscores. Others can find you by it."
         />
         <TextField
           label="Email"

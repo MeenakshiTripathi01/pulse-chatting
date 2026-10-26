@@ -6,10 +6,14 @@ exchange messages that are delivered live and stored permanently.
 
 ## Features
 
-- **Authentication**: register / log in / log out with bcrypt-hashed passwords and a JWT stored
+- **Authentication**: enter any email and a password to sign in; a new email creates the account
+  automatically (a separate register page lets people pick a display name). Log out anytime.
+  Passwords are bcrypt-hashed, and the session is a JWT stored
   in an `HttpOnly` cookie. Sessions survive page refreshes. CSRF protection for state-changing
   requests and rate limits on login and registration.
-- **User directory**: searchable list of other users (name or email).
+- **Usernames**: every new account picks a unique `@username` (3–20 letters, numbers, dots or
+  underscores) that others can search for.
+- **User directory**: searchable list of other users (name, username or email).
 - **Private conversations**: one conversation per pair of users, enforced by a unique index.
 - **Real-time messaging**: Socket.IO with server-side room authorization. A message is shown
   as sent only after MongoDB has saved it (acknowledgements).
@@ -91,7 +95,8 @@ realtime-chat/
 
 ## Database schema
 
-**User**: `name`, `email` (trimmed, lowercased, **unique index**), `passwordHash`
+**User**: `name`, `username` (lowercased, **unique index**; optional only for accounts created
+before usernames existed), `email` (trimmed, lowercased, **unique index**), `passwordHash`
 (`select: false`, so it's never returned unless explicitly requested), timestamps.
 
 **Conversation**: `type` (`"direct"` today, ready for `"group"` later), `participants`
@@ -105,6 +110,7 @@ realtime-chat/
 | ------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `users.email` unique                                    | Fast login lookup; the database itself rejects duplicate accounts.       |
 | `users.name`                                            | Alphabetical user directory.                                             |
+| `users.username` unique (partial)                       | One account per username; accounts without one don't collide.            |
 | `conversations.directKey` unique (partial)              | Exactly one 1:1 conversation per pair, even if both users click at once. |
 | `conversations { participants, lastMessageAt: -1 }`     | "My conversations, newest first" (multikey index on the array).          |
 | `messages { conversation, createdAt: -1, _id: -1 }`     | Paginated history; `_id` breaks ties between same-millisecond messages.  |
@@ -129,10 +135,11 @@ can't make it go backwards.
    requests. The client fetches a token from `GET /api/auth/csrf` (also stored in an HttpOnly
    cookie) and sends it in an `X-CSRF-Token` header. The server compares header and cookie.
    Other sites can't read the token because CORS blocks them from reading our responses.
-5. **Login errors are generic** ("Invalid email or password"), and the server compares against
-   a dummy hash for unknown emails, so attackers can't use responses or timing to learn which
-   emails are registered. (Registration does say "email already exists"; that trade-off favors
-   usability.)
+5. **Sign in or sign up in one step**: logging in with an email that has no account creates
+   one (the password must meet the new-password rules, and the display name is derived from
+   the email). A registered email with the wrong password is rejected with `WRONG_PASSWORD`.
+   This favors ease of use over hiding which emails are registered; the login rate limit still
+   applies.
 6. **Rate limits**: 20 login/registration attempts per IP per 15 minutes (configurable);
    30 socket messages per 10 seconds per connection.
 7. Unknown or unauthorized conversations both return **404**, so ids can't be probed.
@@ -317,24 +324,24 @@ Every `POST` (including login and register) requires the `X-CSRF-Token` header w
 from `GET /api/auth/csrf`. Authenticated requests rely on the session cookie, so browser
 clients must send credentials (`withCredentials: true`).
 
-| Method | Path                                             | Auth     | Description                                                                                                                       |
-| ------ | ------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/api/health`                                    | –        | `{ status, database }` for uptime checks                                                                                          |
-| GET    | `/api/auth/csrf`                                 | –        | `{ csrfToken }` and sets the CSRF cookie                                                                                          |
-| POST   | `/api/auth/register`                             | –        | Body `{ name, email, password }` → `201 { user }` + session cookie. `409 EMAIL_TAKEN`, `400 VALIDATION_ERROR`, `429 RATE_LIMITED` |
-| POST   | `/api/auth/login`                                | –        | Body `{ email, password }` → `{ user }` + session cookie. `401 INVALID_CREDENTIALS`                                               |
-| POST   | `/api/auth/logout`                               | –        | Clears the session cookie → `204`                                                                                                 |
-| GET    | `/api/auth/me`                                   | ✔        | `{ user }` for the current session. `401` if missing/expired                                                                      |
-| GET    | `/api/users?search=&limit=`                      | ✔        | Other users matching name/email (`limit` 1–50, default 20) → `{ users }`                                                          |
-| GET    | `/api/conversations`                             | ✔        | My conversations, newest activity first → `{ conversations }`                                                                     |
-| POST   | `/api/conversations`                             | ✔        | Body `{ participantId }` → `201` (created) or `200` (existing) `{ conversation }`                                                 |
-| GET    | `/api/conversations/:id`                         | ✔ member | One conversation → `{ conversation }`; `404` if not a member                                                                      |
-| GET    | `/api/conversations/:id/messages?before=&limit=` | ✔ member | `{ messages, hasMore, nextCursor }`, oldest→newest; pass `nextCursor` as `before` for older pages (`limit` 1–100, default 30)     |
+| Method | Path                                             | Auth     | Description                                                                                                                                                                                                                   |
+| ------ | ------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/health`                                    | –        | `{ status, database }` for uptime checks                                                                                                                                                                                      |
+| GET    | `/api/auth/csrf`                                 | –        | `{ csrfToken }` and sets the CSRF cookie                                                                                                                                                                                      |
+| POST   | `/api/auth/register`                             | –        | Body `{ name, username, email, password }` → `201 { user }` + session cookie. `409 EMAIL_TAKEN` / `USERNAME_TAKEN`, `400 VALIDATION_ERROR`, `429 RATE_LIMITED`                                                                |
+| POST   | `/api/auth/login`                                | –        | Body `{ email, password, username? }` → `200 { user, created: false }`, or `201 { user, created: true }` for a new email (`username` required then, else `400 USERNAME_REQUIRED`). `401 WRONG_PASSWORD`, `409 USERNAME_TAKEN` |
+| POST   | `/api/auth/logout`                               | –        | Clears the session cookie → `204`                                                                                                                                                                                             |
+| GET    | `/api/auth/me`                                   | ✔        | `{ user }` for the current session. `401` if missing/expired                                                                                                                                                                  |
+| GET    | `/api/users?search=&limit=`                      | ✔        | Other users matching name/username/email; a leading `@` is ignored (`limit` 1–50, default 20) → `{ users }`                                                                                                                   |
+| GET    | `/api/conversations`                             | ✔        | My conversations, newest activity first → `{ conversations }`                                                                                                                                                                 |
+| POST   | `/api/conversations`                             | ✔        | Body `{ participantId }` → `201` (created) or `200` (existing) `{ conversation }`                                                                                                                                             |
+| GET    | `/api/conversations/:id`                         | ✔ member | One conversation → `{ conversation }`; `404` if not a member                                                                                                                                                                  |
+| GET    | `/api/conversations/:id/messages?before=&limit=` | ✔ member | `{ messages, hasMore, nextCursor }`, oldest→newest; pass `nextCursor` as `before` for older pages (`limit` 1–100, default 30)                                                                                                 |
 
 Example objects:
 
 ```json
-{ "user": { "id": "66f…", "name": "Ada Lovelace", "email": "ada@example.com" } }
+{ "user": { "id": "66f…", "name": "Ada Lovelace", "username": "ada", "email": "ada@example.com" } }
 
 { "message": { "id": "66f…", "conversationId": "66f…", "senderId": "66f…",
   "content": "Hello!", "clientMessageId": "1b9d…", "createdAt": "2026-10-25T10:00:00.000Z" } }

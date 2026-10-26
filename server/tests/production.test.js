@@ -71,6 +71,7 @@ describe('production mode (simulated Render deployment)', () => {
     const session = await browserSession();
     const res = await session.post('/api/auth/register', {
       name: 'Prod User',
+      username: 'prod_user',
       email: 'prod@example.com',
       password: 'Password123',
     });
@@ -98,6 +99,7 @@ describe('production mode (simulated Render deployment)', () => {
     const session = await browserSession('203.0.113.20');
     await session.post('/api/auth/register', {
       name: 'Socket User',
+      username: 'socket_user',
       email: 'socket-prod@example.com',
       password: 'Password123',
     });
@@ -126,8 +128,16 @@ describe('production mode (simulated Render deployment)', () => {
   });
 
   it('rate-limits login attempts per client IP behind the proxy', async () => {
+    const owner = await browserSession('198.51.100.3');
+    await owner.post('/api/auth/register', {
+      name: 'Target User',
+      username: 'target_user',
+      email: 'target@example.com',
+      password: 'Password123',
+    });
+
     const attacker = await browserSession('198.51.100.1');
-    const credentials = { email: 'nobody@example.com', password: 'WrongPassword1' };
+    const credentials = { email: 'target@example.com', password: 'WrongPassword1' };
 
     const statuses = [];
     for (let i = 0; i < 4; i += 1) {

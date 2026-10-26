@@ -21,6 +21,7 @@ export async function createClient(app) {
 export function buildUserData(overrides = {}) {
   return {
     name: 'Test User',
+    username: `user_${randomUUID().replaceAll('-', '').slice(0, 12)}`,
     email: `user-${randomUUID()}@example.com`,
     password: 'Password123',
     ...overrides,

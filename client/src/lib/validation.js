@@ -12,10 +12,22 @@ const emailSchema = z
   .min(1, 'Email is required')
   .pipe(z.email('Enter a valid email address').max(254, 'Email is too long'));
 
+const usernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1, 'Username is required')
+  .min(3, 'Username must be at least 3 characters')
+  .max(20, 'Username must be at most 20 characters')
+  .regex(/^[a-z0-9._]+$/, 'Username can only use letters, numbers, dots and underscores');
+
 export const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, 'Password is required'),
 });
+
+/** Login for an email the server reported as new: a username is now required. */
+export const newAccountLoginSchema = loginSchema.extend({ username: usernameSchema });
 
 export const registerSchema = z
   .object({
@@ -25,6 +37,7 @@ export const registerSchema = z
       .min(1, 'Name is required')
       .min(2, 'Name must be at least 2 characters')
       .max(50, 'Name must be at most 50 characters'),
+    username: usernameSchema,
     email: emailSchema,
     password: z
       .string()

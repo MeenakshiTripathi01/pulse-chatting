@@ -360,7 +360,7 @@ describe('connection state', () => {
 
     await socket.serverEmit('connect_error', { data: { code: 'UNAUTHENTICATED' } });
 
-    expect(await screen.findByRole('heading', { name: 'Welcome back' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Welcome to Pulse' })).toBeInTheDocument();
     expect(screen.getByText('Your session has ended. Please log in again.')).toBeInTheDocument();
   });
 });

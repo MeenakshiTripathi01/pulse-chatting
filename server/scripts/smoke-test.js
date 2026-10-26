@@ -74,12 +74,14 @@ async function main() {
 
   const aliceReg = await alice.request('POST', '/api/auth/register', {
     name: 'Smoke Alice',
+    username: `smoke_a_${runId}`,
     email: `smoke-alice-${runId}@example.com`,
     password: 'Password123',
   });
   check(aliceReg.status === 201, 'Alice registers');
   const bobReg = await bob.request('POST', '/api/auth/register', {
     name: 'Smoke Bob',
+    username: `smoke_b_${runId}`,
     email: `smoke-bob-${runId}@example.com`,
     password: 'Password123',
   });

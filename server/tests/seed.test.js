@@ -40,6 +40,7 @@ describe('seed script (development only)', () => {
     const client = await createClient(app);
     await client.post('/api/auth/register', {
       name: 'Real Alice',
+      username: 'real_alice',
       email: 'alice@demo.com',
       password: 'MyOwnPassword9',
     });

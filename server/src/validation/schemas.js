@@ -19,9 +19,17 @@ const nameSchema = z
   .min(2, 'Name must be at least 2 characters')
   .max(50, 'Name must be at most 50 characters');
 
+export const usernameSchema = z
+  .string({ error: 'Username is required' })
+  .trim()
+  .toLowerCase()
+  .min(3, 'Username must be at least 3 characters')
+  .max(20, 'Username must be at most 20 characters')
+  .regex(/^[a-z0-9._]+$/, 'Username can only use letters, numbers, dots and underscores');
+
 // bcrypt only uses the first 72 bytes of a password, so longer input is rejected rather than
 // silently truncated.
-const newPasswordSchema = z
+export const newPasswordSchema = z
   .string({ error: 'Password is required' })
   .min(8, 'Password must be at least 8 characters')
   .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'Password is too long')
@@ -32,13 +40,19 @@ const newPasswordSchema = z
 
 export const registerSchema = z.object({
   name: nameSchema,
+  username: usernameSchema,
   email: emailSchema,
   password: newPasswordSchema,
 });
 
+// `username` is only needed when the login creates an account (or the account has none yet).
 export const loginSchema = z.object({
   email: emailSchema,
   password: z.string({ error: 'Password is required' }).min(1, 'Password is required').max(200),
+  username: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    usernameSchema.optional(),
+  ),
 });
 
 export const userSearchQuerySchema = z.object({

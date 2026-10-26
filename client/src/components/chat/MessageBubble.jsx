@@ -1,10 +1,13 @@
+import { useEffect, useRef, useState } from 'react';
 import { formatFullDateTime, formatMessageTime } from '../../lib/format.js';
 import { Spinner } from '../ui/Spinner.jsx';
 
 const DELETED_TEXT = 'This message was deleted';
-
-const actionButtonClass =
-  'grid size-8 place-items-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-brand-600';
+// How far a message must be dragged to the right to start a reply, and how far it can move.
+const SWIPE_TRIGGER_PX = 60;
+const SWIPE_MAX_PX = 80;
+// Movement below this is still treated as a click (fingers and mice jitter slightly).
+const DRAG_SLOP_PX = 8;
 
 const replyIcon = (
   <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor" className="size-4">
@@ -51,11 +54,16 @@ function ReplyQuote({ replyTo, isOwn, senderLabel }) {
   );
 }
 
+/**
+ * Swipe a message to the right to reply to it; click (or press Enter on) one of your own
+ * messages for the delete option. Keyboard users can press the right arrow key to reply.
+ */
 export function MessageBubble({
   message,
   isOwn,
   currentUserId,
   otherName,
+  hintId,
   onRetry,
   onReply,
   onDelete,
@@ -64,17 +72,148 @@ export function MessageBubble({
   const isFailed = message.status === 'failed';
   const isDeleted = Boolean(message.deleted);
   const canAct = !isSending && !isFailed && !isDeleted;
+  const canDelete = canAct && isOwn;
   const replySender = message.replyTo?.senderId === currentUserId ? 'You' : otherName;
 
+  const [dragX, setDragX] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // { pointerId, startX, startY, swiping, moved } while a pointer is down on the bubble.
+  const dragRef = useRef(null);
+  const suppressClickRef = useRef(false);
+  const bubbleRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    menuRef.current?.querySelector('button')?.focus();
+    const handlePointerDown = (event) => {
+      if (!menuRef.current?.contains(event.target) && !bubbleRef.current?.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [menuOpen]);
+
+  function handlePointerDown(event) {
+    if (!canAct || event.button !== 0) return;
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      swiping: false,
+      moved: false,
+    };
+  }
+
+  function handlePointerMove(event) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+
+    if (!drag.swiping) {
+      if (Math.abs(dx) < DRAG_SLOP_PX && Math.abs(dy) < DRAG_SLOP_PX) return;
+      drag.moved = true;
+      // Only a mostly-horizontal drag to the right is a swipe; anything else (like scrolling)
+      // is left alone.
+      if (dx <= 0 || Math.abs(dx) < Math.abs(dy)) {
+        dragRef.current = null;
+        suppressClickRef.current = true;
+        return;
+      }
+      drag.swiping = true;
+      window.getSelection?.()?.removeAllRanges();
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Capture is a nicety; without it the swipe ends if the pointer leaves the bubble.
+      }
+    }
+    setDragX(Math.min(Math.max(dx, 0), SWIPE_MAX_PX));
+  }
+
+  function finishDrag(event, { cancelled = false } = {}) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (drag.moved) suppressClickRef.current = true;
+    if (drag.swiping && !cancelled && event.clientX - drag.startX >= SWIPE_TRIGGER_PX) {
+      onReply(message);
+    }
+    setDragX(0);
+  }
+
+  function handleClick() {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    if (canDelete) setMenuOpen((open) => !open);
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      onReply(message);
+    } else if (canDelete && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      setMenuOpen((open) => !open);
+    } else if (event.key === 'Escape' && menuOpen) {
+      setMenuOpen(false);
+    }
+  }
+
+  function handleMenuKeyDown(event) {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      setMenuOpen(false);
+      bubbleRef.current?.focus();
+    }
+  }
+
+  const isDragging = dragX > 0;
+
   return (
-    <li className={`group flex items-center gap-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+    <li className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`flex max-w-[85%] flex-col sm:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}
+        className={`relative flex max-w-[85%] flex-col sm:max-w-[70%] ${isOwn ? 'items-end' : 'items-start'} ${
+          isDragging ? '' : 'transition-transform duration-200'
+        }`}
+        style={isDragging ? { transform: `translateX(${dragX}px)` } : undefined}
       >
+        {canAct && (
+          <span
+            aria-hidden="true"
+            className="absolute top-1/2 right-full mr-3 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-slate-200 text-slate-600"
+            style={{ opacity: Math.min(dragX / SWIPE_TRIGGER_PX, 1) }}
+          >
+            {replyIcon}
+          </span>
+        )}
+
         <div
-          className={`rounded-2xl px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap ${
+          ref={bubbleRef}
+          role={canDelete ? 'button' : undefined}
+          tabIndex={canAct ? 0 : undefined}
+          aria-haspopup={canDelete ? 'menu' : undefined}
+          aria-expanded={canDelete ? menuOpen : undefined}
+          aria-describedby={canAct ? hintId : undefined}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={(event) => finishDrag(event)}
+          onPointerLeave={(event) => finishDrag(event)}
+          onPointerCancel={(event) => finishDrag(event, { cancelled: true })}
+          onClick={handleClick}
+          onKeyDown={canAct ? handleKeyDown : undefined}
+          className={`touch-pan-y rounded-2xl px-3.5 py-2 text-[0.9375rem] leading-relaxed break-words whitespace-pre-wrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 ${
             isOwn ? 'rounded-br-md' : 'rounded-bl-md'
-          } ${bubbleTone({ isOwn, isDeleted, isFailed, isSending })}`}
+          } ${canDelete ? 'cursor-pointer' : ''} ${isDragging ? 'select-none' : ''} ${bubbleTone({
+            isOwn,
+            isDeleted,
+            isFailed,
+            isSending,
+          })}`}
         >
           {message.replyTo && !isDeleted && (
             <ReplyQuote replyTo={message.replyTo} isOwn={isOwn} senderLabel={replySender} />
@@ -82,6 +221,31 @@ export function MessageBubble({
           <span className="sr-only">{isOwn ? 'You said: ' : 'They said: '}</span>
           {isDeleted ? DELETED_TEXT : message.content}
         </div>
+
+        {menuOpen && (
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label="Message options"
+            onKeyDown={handleMenuKeyDown}
+            className={`absolute top-full z-10 mt-1 min-w-44 rounded-xl bg-white p-1 shadow-lg ring-1 ring-slate-200 ${
+              isOwn ? 'right-0' : 'left-0'
+            }`}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                onDelete(message);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-600"
+            >
+              {trashIcon}
+              Delete message
+            </button>
+          </div>
+        )}
 
         <div className="mt-1 flex items-center gap-1.5 px-1 text-xs text-slate-500">
           {isSending && (
@@ -109,35 +273,6 @@ export function MessageBubble({
           )}
         </div>
       </div>
-
-      {canAct && (
-        <div
-          className={`mb-5 flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100 ${
-            isOwn ? 'order-first flex-row-reverse' : ''
-          }`}
-        >
-          <button
-            type="button"
-            onClick={() => onReply(message)}
-            aria-label="Reply"
-            title="Reply"
-            className={actionButtonClass}
-          >
-            {replyIcon}
-          </button>
-          {isOwn && (
-            <button
-              type="button"
-              onClick={() => onDelete(message)}
-              aria-label="Delete message"
-              title="Delete message"
-              className={`${actionButtonClass} hover:text-red-700`}
-            >
-              {trashIcon}
-            </button>
-          )}
-        </div>
-      )}
     </li>
   );
 }

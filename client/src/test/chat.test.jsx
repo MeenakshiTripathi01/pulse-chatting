@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as authApi from '../api/auth.js';
@@ -424,13 +424,23 @@ describe('people search', () => {
   });
 });
 
+/** Drags an element to the right by `distance` pixels with a mouse or finger. */
+function swipeRight(element, distance = 100) {
+  const at = (clientX) => ({ pointerId: 1, button: 0, clientX, clientY: 20 });
+  fireEvent.pointerDown(element, at(10));
+  fireEvent.pointerMove(element, at(10 + distance / 2));
+  fireEvent.pointerMove(element, at(10 + distance));
+  fireEvent.pointerUp(element, at(10 + distance));
+}
+
+const bubble = (text) => within(messageLog()).getByText(text, { selector: 'div' });
+
 describe('replies', () => {
-  it('replies to a specific message and shows the quote', async () => {
+  it('replies to a message swiped to the right and shows the quote', async () => {
     socket.emitWithAck.mockReturnValue(deferred().promise);
     await openConversationWithBob();
-    const bobsMessage = within(messageLog()).getByText('See you soon', { selector: 'div' });
 
-    await userEvent.click(within(bobsMessage.closest('li')).getByRole('button', { name: 'Reply' }));
+    swipeRight(bubble('See you soon'));
     const input = screen.getByRole('textbox', { name: 'Message Bob Builder' });
     expect(input).toHaveFocus();
     expect(screen.getByText('Replying to Bob Builder')).toBeInTheDocument();
@@ -449,16 +459,35 @@ describe('replies', () => {
     expect(within(sent).getByText('See you soon')).toBeInTheDocument();
   });
 
-  it('can cancel a reply with the button or Escape', async () => {
+  it('ignores short swipes and swipes to the left', async () => {
     await openConversationWithBob();
-    const firstMessage = within(messageLog()).getByText('Hello Bob').closest('li');
 
-    await userEvent.click(within(firstMessage).getByRole('button', { name: 'Reply' }));
+    swipeRight(bubble('See you soon'), 30);
+    swipeRight(bubble('See you soon'), -100);
+
+    expect(screen.queryByText(/^Replying to/)).not.toBeInTheDocument();
+  });
+
+  it('does not open the delete option when my own message is swiped', async () => {
+    await openConversationWithBob();
+
+    swipeRight(bubble('Hello Bob'));
+    fireEvent.click(bubble('Hello Bob'));
+
+    expect(screen.getByText('Replying to yourself')).toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('starts a reply with the right arrow key and can cancel with the button or Escape', async () => {
+    await openConversationWithBob();
+
+    bubble('Hello Bob').focus();
+    await userEvent.keyboard('{ArrowRight}');
     expect(screen.getByText('Replying to yourself')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Cancel reply' }));
     expect(screen.queryByText('Replying to yourself')).not.toBeInTheDocument();
 
-    await userEvent.click(within(firstMessage).getByRole('button', { name: 'Reply' }));
+    swipeRight(bubble('Hello Bob'));
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByText('Replying to yourself')).not.toBeInTheDocument();
   });
@@ -470,11 +499,12 @@ describe('deleting', () => {
       message('m1', ada.id, '', 10, { deleted: true }),
     );
     await openConversationWithBob();
-    const mine = within(messageLog()).getByText('Hello Bob').closest('li');
-    const bobs = within(messageLog()).getByText('See you soon', { selector: 'div' }).closest('li');
-    expect(within(bobs).queryByRole('button', { name: 'Delete message' })).not.toBeInTheDocument();
 
-    await userEvent.click(within(mine).getByRole('button', { name: 'Delete message' }));
+    await userEvent.click(bubble('See you soon'));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    await userEvent.click(bubble('Hello Bob'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete message' }));
     const dialog = screen.getByRole('alertdialog', { name: 'Delete message?' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Delete for everyone' }));
 
@@ -489,9 +519,9 @@ describe('deleting', () => {
       apiError(403, { message: 'You can only delete your own messages' }),
     );
     await openConversationWithBob();
-    const mine = within(messageLog()).getByText('Hello Bob').closest('li');
 
-    await userEvent.click(within(mine).getByRole('button', { name: 'Delete message' }));
+    await userEvent.click(bubble('Hello Bob'));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete message' }));
     await userEvent.click(screen.getByRole('button', { name: 'Delete for everyone' }));
 
     const dialog = await screen.findByRole('alertdialog');

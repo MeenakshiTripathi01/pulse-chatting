@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef } from 'react';
+import { Fragment, useEffect, useId, useLayoutEffect, useRef } from 'react';
 import { formatDayLabel, isSameDay } from '../../lib/format.js';
 import { Alert } from '../ui/Alert.jsx';
 import { Button } from '../ui/Button.jsx';
@@ -17,6 +17,7 @@ export function MessageList({
   onDelete,
 }) {
   const containerRef = useRef(null);
+  const hintId = useId();
   const isNearBottomRef = useRef(true);
   const distanceFromBottomRef = useRef(null);
 
@@ -66,8 +67,12 @@ export function MessageList({
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-6"
+      className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-6"
     >
+      <p id={hintId} hidden>
+        Swipe right or press the right arrow key to reply. On your own messages, click or press
+        Enter for the option to delete.
+      </p>
       {thread.hasMore && (
         <div className="mb-4 flex justify-center">
           {thread.olderStatus === 'error' ? (
@@ -111,6 +116,7 @@ export function MessageList({
                 isOwn={message.senderId === currentUserId}
                 currentUserId={currentUserId}
                 otherName={otherName}
+                hintId={hintId}
                 onRetry={onRetry}
                 onReply={onReply}
                 onDelete={onDelete}

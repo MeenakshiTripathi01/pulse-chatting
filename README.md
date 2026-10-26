@@ -24,8 +24,10 @@ messages that are delivered live and stored permanently.
 - **Live sidebar**: latest-message previews and ordering update as messages arrive; new
   conversations started by others appear automatically.
 - **Emojis**: an emoji picker in the message box inserts emojis at the cursor.
-- **Replies**: reply to a specific message; the reply shows a quote of the original.
-- **Deleting**: delete your own messages for everyone (they become "This message was deleted",
+- **Replies**: swipe a message to the right (or focus it and press the right arrow key) to reply;
+  the reply shows a quote of the original.
+- **Deleting**: click one of your own messages (or press Enter on it) for the delete option.
+  Messages are deleted for everyone (they become "This message was deleted",
   and quotes of them lose their text), or delete a whole chat from your list. Deleting a chat
   only affects you: the other person keeps it, and a new message brings it back with only the
   new history.
